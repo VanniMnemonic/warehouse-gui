@@ -1,0 +1,54 @@
+Applicazione Python con PyQT per la gestione di magazzino.
+Uso uv per la gestione delle librerie, ricordalo.
+Suggerisci pacchetti aggiuntivi se li ritieni opportuni.
+I dati vengono salvati in un DB SQLite.
+L'applicazione gira su una chiavetta USB che può essere spostata tra diversi pc, quindi eseguibile per windows.
+La pagina principale presenta gli utenti, filtrabili con fuzzy search.
+Nel caso tu abbia richieste di chiarimenti/possibili differenze di progettazione, chiedi nella chat.
+
+Tabelle:
+
+Users (Utenti)
+# Gli utenti rappresentano il personale che ritirerà i materiali
+ - Title (Titolo personale)
+ - First (Nome)
+ - Last (Cognome)
+ - Id (Identificativo sequenziale di rapida immissione, autogenerato, iniziale nome + iniziale cognome + contatore se duplicato)
+ - Workplace (Luogo di lavoro)
+ - Mobile (Cellulare)
+ - Email
+ - Notes (Note)
+
+Consumables (Consumabili)
+# I consumabili sono materiali a distribuzione che non richiedono la restituzione, le consegne vengono scalate dai Batches (Lotti)
+# in base alla scadenza. Nel caso una parte venga restituita sarà presente un apposito comando nelle lista dei Withdrawals (Prelievi)
+ - Denomination (Denominazione)
+ - NDC (Codice alfanumerico, verrà inserito tramite lettore codice a barre)
+ - Part number (Codice alfanumerico, verrà inserito tramite lettore codice a barre)
+ - Serial number (Codice alfanumerico, verrà inserito tramite lettore codice a barre)
+ - Code (Codice)
+ - Image (Immagine per identificare il consumabile)
+
+Items (Oggetti)
+# Materiali di cui è generalmente prevista la restituzione. I dati sono gli stessi dei Consumables (Consumabili), ma 
+# non vengono prelevati da Batches (Lotti). Trova la miglior logica di implementazione per questa feature. Un flag di distinzione?
+
+Batches (Lotti)
+# I lotti rappresentano forniture di consumabili
+ - Consumable (Consumabile)
+ - Expiration (Scadenza)
+ - Amount (Quantità)
+ - Location (Ubicazione)
+
+Withdrawals (Prelievi)
+# I prelievi reppresentano i consumabili o gli oggetti consegnati. In base al tipo è prevista la 
+# riconsegna o meno, tienine conto durante l'implementazione.
+ - User (Utente)
+ - Consumable|Item (Consumabile o Oggetto)
+ - Amount (Quantità prelevata)
+ - Withdrawal date (Data prelievo)
+ - Notes (Note)
+# I seguenti campi solo nel caso di prelievo di un oggetto (Item), valuta se utilizzare una tabella/entità separata
+ - Return date (Data di restituzione)
+ - Efficient at return (Efficiente alla riconsegna)
+

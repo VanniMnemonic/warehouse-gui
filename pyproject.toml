@@ -1,0 +1,14 @@
+[project]
+name = "warehouse-gui"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "greenlet>=3.3.0",
+    "pyqt6>=6.10.2",
+    "qasync>=0.28.0",
+    "rapidfuzz>=3.14.3",
+    "sqlmodel>=0.0.31",
+]
