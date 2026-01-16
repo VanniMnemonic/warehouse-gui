@@ -21,6 +21,7 @@ class UserFormDialog(QDialog):
         self.workplace_input = QLineEdit()
         self.mobile_input = QLineEdit()
         self.email_input = QLineEdit()
+        self.code_input = QLineEdit()
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(100)
         
@@ -30,6 +31,7 @@ class UserFormDialog(QDialog):
         self.form_layout.addRow("Workplace:", self.workplace_input)
         self.form_layout.addRow("Mobile:", self.mobile_input)
         self.form_layout.addRow("Email:", self.email_input)
+        self.form_layout.addRow("Code (barcode):", self.code_input)
         self.form_layout.addRow("Notes:", self.notes_input)
         
         self.layout.addLayout(self.form_layout)
@@ -67,6 +69,7 @@ class UserFormDialog(QDialog):
                 workplace=self.workplace_input.text().strip() or None,
                 mobile=self.mobile_input.text().strip() or None,
                 email=self.email_input.text().strip() or None,
+                code=self.code_input.text().strip() or None,
                 notes=self.notes_input.toPlainText().strip() or None
             )
             QMessageBox.information(self, "Success", f"User created successfully!\nID: {user.custom_id}")

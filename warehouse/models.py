@@ -18,6 +18,7 @@ class User(SQLModel, table=True):
     mobile: Optional[str] = None
     email: Optional[str] = None
     notes: Optional[str] = None
+    code: Optional[str] = Field(default=None, index=True, unique=True)
     
     withdrawals: List["Withdrawal"] = Relationship(back_populates="user")
 
