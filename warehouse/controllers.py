@@ -1,6 +1,6 @@
 from sqlmodel import select, col
 from warehouse.database import get_session
-from warehouse.models import User, Withdrawal, Material
+from warehouse.models import User, Withdrawal, Material, Batch, MaterialType
 from rapidfuzz import process, fuzz, utils
 
 async def get_all_users():
@@ -67,3 +67,93 @@ async def update_user(user_id: int, **kwargs) -> User:
         await session.commit()
         await session.refresh(user)
         return user
+
+
+async def create_withdrawal(
+    user_id: int,
+    material_id: int,
+    amount: int,
+    notes: str | None = None,
+    return_date=None,
+    efficient_at_return: bool | None = None,
+) -> Withdrawal:
+    if amount <= 0:
+        raise ValueError("Amount must be greater than zero")
+
+    async with get_session() as session:
+        # Check material type and stock for consumables
+        material = await session.get(Material, material_id)
+        if not material:
+            raise ValueError("Material not found")
+
+        if material.material_type == MaterialType.CONSUMABLE:
+            # Get batches sorted by expiration (FEFO)
+            statement = select(Batch).where(Batch.material_id == material_id).where(Batch.amount > 0).order_by(Batch.expiration)
+            result = await session.execute(statement)
+            batches = result.scalars().all()
+            
+            total_stock = sum(b.amount for b in batches)
+            if total_stock < amount:
+                raise ValueError(f"Insufficient stock. Available: {total_stock}, Requested: {amount}")
+            
+            remaining_to_withdraw = amount
+            for batch in batches:
+                if remaining_to_withdraw <= 0:
+                    break
+                
+                deduct = min(batch.amount, remaining_to_withdraw)
+                batch.amount -= deduct
+                remaining_to_withdraw -= deduct
+                session.add(batch)
+                
+        withdrawal = Withdrawal(
+            user_id=user_id,
+            material_id=material_id,
+            amount=amount,
+            notes=notes,
+            return_date=return_date,
+            efficient_at_return=efficient_at_return,
+        )
+        session.add(withdrawal)
+        await session.commit()
+        await session.refresh(withdrawal)
+        return withdrawal
+
+
+async def get_all_withdrawals():
+    async with get_session() as session:
+        statement = select(Withdrawal, User, Material).join(User).join(Material).order_by(col(Withdrawal.withdrawal_date).desc())
+        result = await session.execute(statement)
+        # Returns list of (Withdrawal, User, Material) tuples
+        return result.all()
+
+
+async def return_withdrawal_item(withdrawal_id: int, efficient: bool) -> Withdrawal:
+    from datetime import datetime
+    async with get_session() as session:
+        withdrawal = await session.get(Withdrawal, withdrawal_id)
+        if not withdrawal:
+            raise ValueError("Withdrawal not found")
+        
+        withdrawal.return_date = datetime.now()
+        withdrawal.efficient_at_return = efficient
+        session.add(withdrawal)
+        
+        # Update material efficiency status
+        material = await session.get(Material, withdrawal.material_id)
+        if material:
+            material.is_efficient = efficient
+            session.add(material)
+            
+        await session.commit()
+        await session.refresh(withdrawal)
+        return withdrawal
+
+async def get_active_item_withdrawals() -> set[int]:
+    async with get_session() as session:
+        # Get material_ids of withdrawals that haven't been returned yet
+        statement = select(Withdrawal.material_id).where(
+            Withdrawal.return_date == None
+        )
+        result = await session.execute(statement)
+        return set(result.scalars().all())

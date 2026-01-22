@@ -8,11 +8,12 @@ from warehouse.controllers import create_user
 class UserFormDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add New User")
-        self.resize(400, 500)
+        self.setWindowTitle("Aggiungi Nuovo Utente")
+        self.resize(600, 500)
         
         self.layout = QVBoxLayout()
         self.form_layout = QFormLayout()
+        self.form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
         
         # Fields
         self.title_input = QLineEdit()
@@ -25,14 +26,14 @@ class UserFormDialog(QDialog):
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(100)
         
-        self.form_layout.addRow("Title:", self.title_input)
-        self.form_layout.addRow("First Name *:", self.first_name_input)
-        self.form_layout.addRow("Last Name *:", self.last_name_input)
-        self.form_layout.addRow("Workplace:", self.workplace_input)
-        self.form_layout.addRow("Mobile:", self.mobile_input)
+        self.form_layout.addRow("Titolo:", self.title_input)
+        self.form_layout.addRow("Nome *:", self.first_name_input)
+        self.form_layout.addRow("Cognome *:", self.last_name_input)
+        self.form_layout.addRow("Luogo di lavoro:", self.workplace_input)
+        self.form_layout.addRow("Cellulare:", self.mobile_input)
         self.form_layout.addRow("Email:", self.email_input)
-        self.form_layout.addRow("Code (barcode):", self.code_input)
-        self.form_layout.addRow("Notes:", self.notes_input)
+        self.form_layout.addRow("Codice (barcode):", self.code_input)
+        self.form_layout.addRow("Note:", self.notes_input)
         
         self.layout.addLayout(self.form_layout)
         
@@ -49,7 +50,7 @@ class UserFormDialog(QDialog):
         self.setLayout(self.layout)
 
     @asyncSlot()
-    async def accept_data(self):
+    async def accept_data(self, *args):
         # Disable buttons to prevent double submission
         self.buttons.setEnabled(False)
         

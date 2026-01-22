@@ -1,0 +1,132 @@
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem, 
+    QLabel, QGroupBox, QMessageBox, QGridLayout, QFrame
+)
+from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QColor, QPalette
+from qasync import asyncSlot
+from datetime import date, timedelta
+from warehouse.controllers_material import get_expiring_batches, get_inefficient_materials
+from warehouse.models import Batch, Material
+
+class ExpiringBatchItemWidget(QWidget):
+    def __init__(self, batch: Batch, material: Material):
+        super().__init__()
+        self.batch = batch
+        self.material = material
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QGridLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Material Name
+        lbl_name = QLabel(self.material.denomination)
+        lbl_name.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(lbl_name, 0, 0, 1, 2)
+        
+        # Expiration
+        days_left = (self.batch.expiration - date.today()).days
+        exp_str = f"Scadenza: {self.batch.expiration} ({days_left} giorni)"
+        lbl_exp = QLabel(exp_str)
+        if days_left < 0:
+            lbl_exp.setStyleSheet("color: red; font-weight: bold;")
+        elif days_left < 30:
+            lbl_exp.setStyleSheet("color: orange; font-weight: bold;")
+        layout.addWidget(lbl_exp, 1, 0)
+        
+        # Amount
+        layout.addWidget(QLabel(f"Quantità: {self.batch.amount}"), 1, 1)
+        
+        # Location
+        loc = self.batch.location or "N/A"
+        layout.addWidget(QLabel(f"Posizione: {loc}"), 2, 0, 1, 2)
+        
+        # Separator line removed as per request
+        # line = QFrame()
+        # line.setFrameShape(QFrame.Shape.HLine)
+        # line.setFrameShadow(QFrame.Shadow.Sunken)
+        # layout.addWidget(line, 3, 0, 1, 2)
+
+        self.setLayout(layout)
+
+class InefficientMaterialItemWidget(QWidget):
+    def __init__(self, material: Material):
+        super().__init__()
+        self.material = material
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QGridLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Name
+        lbl_name = QLabel(f"{self.material.denomination} (ID: {self.material.id})")
+        lbl_name.setStyleSheet("font-weight: bold; font-size: 14px; color: #d32f2f;") # Red title for inefficient
+        layout.addWidget(lbl_name, 0, 0, 1, 2)
+        
+        # Codes
+        details = []
+        if self.material.part_number:
+            details.append(f"P/N: {self.material.part_number}")
+        if self.material.serial_number:
+            details.append(f"S/N: {self.material.serial_number}")
+        
+        layout.addWidget(QLabel(" | ".join(details)), 1, 0, 1, 2)
+        
+        
+        self.setLayout(layout)
+
+class DashboardTab(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setup_ui()
+        self.refresh_data()
+
+    def setup_ui(self):
+        main_layout = QHBoxLayout()
+        
+        # Section 1: Expiring Batches
+        expiring_group = QGroupBox("Lotti in Scadenza Prossima (Consumabili)")
+        expiring_layout = QVBoxLayout()
+        self.expiring_list = QListWidget()
+        self.expiring_list.setSpacing(2)
+        expiring_layout.addWidget(self.expiring_list)
+        expiring_group.setLayout(expiring_layout)
+        
+        # Section 2: Inefficient Items
+        inefficient_group = QGroupBox("Oggetti Non Efficienti (Danneggiati)")
+        inefficient_layout = QVBoxLayout()
+        self.inefficient_list = QListWidget()
+        self.inefficient_list.setSpacing(2)
+        inefficient_layout.addWidget(self.inefficient_list)
+        inefficient_group.setLayout(inefficient_layout)
+        
+        main_layout.addWidget(expiring_group)
+        main_layout.addWidget(inefficient_group)
+        
+        self.setLayout(main_layout)
+
+    @asyncSlot()
+    async def refresh_data(self, *args):
+        try:
+            # Load Expiring Batches
+            self.expiring_list.clear()
+            batches_data = await get_expiring_batches(limit=50)
+            for batch, material in batches_data:
+                item = QListWidgetItem(self.expiring_list)
+                widget = ExpiringBatchItemWidget(batch, material)
+                item.setSizeHint(widget.sizeHint())
+                self.expiring_list.setItemWidget(item, widget)
+
+            # Load Inefficient Items
+            self.inefficient_list.clear()
+            inefficient_items = await get_inefficient_materials()
+            for material in inefficient_items:
+                item = QListWidgetItem(self.inefficient_list)
+                widget = InefficientMaterialItemWidget(material)
+                item.setSizeHint(widget.sizeHint())
+                self.inefficient_list.setItemWidget(item, widget)
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile aggiornare la dashboard: {e}")
