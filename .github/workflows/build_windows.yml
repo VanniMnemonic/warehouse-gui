@@ -1,0 +1,38 @@
+name: Build Windows Executable
+
+on:
+  workflow_dispatch: # Permette di avviare la build manualmente
+  push:
+    branches: ["master", "main"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Build with PyInstaller
+        # Eseguiamo lo script di build usando 'uv run' per usare l'ambiente virtuale corretto.
+        # Aggiungiamo pyinstaller come dipendenza effimera per questo comando.
+        run: |
+          uv run --with pyinstaller python build_windows.py
+
+      - name: Upload Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: WarehouseGUI-Windows
+          path: dist/WarehouseGUI.exe

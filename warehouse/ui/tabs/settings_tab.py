@@ -104,7 +104,7 @@ class SettingsTab(QWidget):
             try:
                 # DATABASE_URL is "sqlite+aiosqlite:///warehouse.db"
                 # We need the local file path.
-                db_file = "warehouse.db"
+                db_file = os.path.join(get_base_path(), "warehouse.db")
                 shutil.copy2(db_file, file_path)
                 QMessageBox.information(self, "Successo", "Database esportato con successo.")
             except Exception as e:
@@ -131,7 +131,7 @@ class SettingsTab(QWidget):
                 # We need to close the engine connection properly before overwriting the file
                 await engine.dispose()
                 
-                db_file = "warehouse.db"
+                db_file = os.path.join(get_base_path(), "warehouse.db")
                 # Use shutil to copy
                 shutil.copy2(file_path, db_file)
                 
@@ -160,11 +160,12 @@ class SettingsTab(QWidget):
             # Dispose engine to release locks
             await engine.dispose()
 
+            db_file = os.path.join(get_base_path(), "warehouse.db")
             # Auto-export backup before reset
-            if os.path.exists("warehouse.db"):
+            if os.path.exists(db_file):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                backup_filename = f"warehouse_backup_RESET_{timestamp}.db"
-                shutil.copy2("warehouse.db", backup_filename)
+                backup_filename = os.path.join(get_base_path(), f"warehouse_backup_RESET_{timestamp}.db")
+                shutil.copy2(db_file, backup_filename)
             else:
                 backup_filename = "Nessun backup creato (DB non trovato)"
             
@@ -173,7 +174,7 @@ class SettingsTab(QWidget):
                 await conn.run_sync(SQLModel.metadata.drop_all)
                 await conn.run_sync(SQLModel.metadata.create_all)
             
-            QMessageBox.information(self, "Successo", f"Database resettato con successo.\nBackup: {backup_filename}")
+            QMessageBox.information(self, "Successo", f"Database resettato con successo.\nBackup: {os.path.basename(backup_filename)}")
             self.db_changed.emit()
         
         except Exception as e:

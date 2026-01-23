@@ -3,9 +3,13 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from sqlmodel import SQLModel
 from contextlib import asynccontextmanager
+import os
+from warehouse.utils import get_base_path
 
 # Using a relative path for the database so it works on USB
-DATABASE_URL = "sqlite+aiosqlite:///warehouse.db"
+# We use get_base_path() to ensure it's relative to the executable when frozen
+db_path = os.path.join(get_base_path(), "warehouse.db")
+DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
 engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 

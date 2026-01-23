@@ -7,6 +7,8 @@ from PyQt6.QtGui import QPixmap, QImage
 from qasync import asyncSlot
 import os
 import uuid
+import shutil
+from warehouse.utils import get_base_path
 from warehouse.models import MaterialType
 from warehouse.controllers_material import create_material
 
