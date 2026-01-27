@@ -129,8 +129,8 @@ class MaterialFormDialog(QDialog):
         
         try:
             # Create images directory if it doesn't exist
-            # Saving in a folder named 'images' in the current working directory
-            images_dir = os.path.join(os.getcwd(), "images")
+            # Saving in a folder named 'images' relative to the executable/script
+            images_dir = os.path.join(get_base_path(), "images")
             os.makedirs(images_dir, exist_ok=True)
             
             # Generate unique filename

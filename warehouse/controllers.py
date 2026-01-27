@@ -21,7 +21,7 @@ def filter_users(query: str, users: list[User]) -> list[User]:
         return users
     
     choices = [
-        f"{user.first_name} {user.last_name} {user.custom_id} {user.title or ''} {user.workplace or ''} {user.code or ''}"
+        f"{user.first_name or ''} {user.last_name or ''} {user.custom_id or ''} {user.title or ''} {user.workplace or ''} {user.code or ''} {user.notes or ''} {user.email or ''} {user.mobile or ''}"
         for user in users
     ]
     

@@ -3,9 +3,11 @@ from PyQt6.QtWidgets import (
     QLabel, QGroupBox, QMessageBox, QGridLayout, QFrame
 )
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QColor, QPalette, QPixmap
 from qasync import asyncSlot
 from datetime import date, timedelta
+import os
+from warehouse.utils import get_base_path
 from warehouse.controllers_material import get_expiring_batches, get_inefficient_materials
 from warehouse.models import Batch, Material
 
@@ -17,13 +19,43 @@ class ExpiringBatchItemWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QGridLayout()
+        layout = QHBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Image Thumbnail
+        image_label = QLabel()
+        image_label.setFixedSize(48, 48)
+        image_label.setStyleSheet("border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        48, 48,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    image_label.setPixmap(scaled)
+                else:
+                    image_label.setText("No Img")
+            else:
+                image_label.setText("No File")
+        else:
+            image_label.setText("No Img")
+        
+        layout.addWidget(image_label)
+        
+        # Details Layout
+        details_layout = QGridLayout()
+        details_layout.setVerticalSpacing(2)
         
         # Material Name
         lbl_name = QLabel(self.material.denomination)
         lbl_name.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(lbl_name, 0, 0, 1, 2)
+        details_layout.addWidget(lbl_name, 0, 0, 1, 2)
         
         # Expiration
         days_left = (self.batch.expiration - date.today()).days
@@ -33,21 +65,16 @@ class ExpiringBatchItemWidget(QWidget):
             lbl_exp.setStyleSheet("color: red; font-weight: bold;")
         elif days_left < 30:
             lbl_exp.setStyleSheet("color: orange; font-weight: bold;")
-        layout.addWidget(lbl_exp, 1, 0)
+        details_layout.addWidget(lbl_exp, 1, 0)
         
         # Amount
-        layout.addWidget(QLabel(f"Quantità: {self.batch.amount}"), 1, 1)
+        details_layout.addWidget(QLabel(f"Quantità: {self.batch.amount}"), 1, 1)
         
         # Location
         loc = self.batch.location or "N/A"
-        layout.addWidget(QLabel(f"Posizione: {loc}"), 2, 0, 1, 2)
+        details_layout.addWidget(QLabel(f"Posizione: {loc}"), 2, 0, 1, 2)
         
-        # Separator line removed as per request
-        # line = QFrame()
-        # line.setFrameShape(QFrame.Shape.HLine)
-        # line.setFrameShadow(QFrame.Shadow.Sunken)
-        # layout.addWidget(line, 3, 0, 1, 2)
-
+        layout.addLayout(details_layout)
         self.setLayout(layout)
 
 class InefficientMaterialItemWidget(QWidget):
@@ -57,13 +84,43 @@ class InefficientMaterialItemWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QGridLayout()
+        layout = QHBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Image Thumbnail
+        image_label = QLabel()
+        image_label.setFixedSize(48, 48)
+        image_label.setStyleSheet("border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        48, 48,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    image_label.setPixmap(scaled)
+                else:
+                    image_label.setText("No Img")
+            else:
+                image_label.setText("No File")
+        else:
+            image_label.setText("No Img")
+        
+        layout.addWidget(image_label)
+        
+        # Details Layout
+        details_layout = QGridLayout()
+        details_layout.setVerticalSpacing(2)
         
         # Name
         lbl_name = QLabel(f"{self.material.denomination} (ID: {self.material.id})")
         lbl_name.setStyleSheet("font-weight: bold; font-size: 14px; color: #d32f2f;") # Red title for inefficient
-        layout.addWidget(lbl_name, 0, 0, 1, 2)
+        details_layout.addWidget(lbl_name, 0, 0, 1, 2)
         
         # Codes
         details = []
@@ -72,9 +129,9 @@ class InefficientMaterialItemWidget(QWidget):
         if self.material.serial_number:
             details.append(f"S/N: {self.material.serial_number}")
         
-        layout.addWidget(QLabel(" | ".join(details)), 1, 0, 1, 2)
+        details_layout.addWidget(QLabel(" | ".join(details)), 1, 0, 1, 2)
         
-        
+        layout.addLayout(details_layout)
         self.setLayout(layout)
 
 class DashboardTab(QWidget):

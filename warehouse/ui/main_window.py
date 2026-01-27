@@ -24,6 +24,14 @@ class MainWindow(QMainWindow):
         # Set default theme
         QApplication.setStyle("Fusion")
         
+        # Apply global stylesheet for buttons to make them taller
+        QApplication.instance().setStyleSheet("""
+            QPushButton {
+                min-height: 30px;
+                padding: 5px 15px;
+            }
+        """)
+        
         container = QWidget()
         self.layout = QVBoxLayout()
         

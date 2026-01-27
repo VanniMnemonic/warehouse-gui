@@ -5,8 +5,13 @@ from PyQt6.QtWidgets import (
     QStackedLayout, QComboBox, QDateEdit, QGridLayout, QScrollArea, QGroupBox
 )
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QPixmap, QImage
 from qasync import asyncSlot
 import asyncio
+import os
+import uuid
+import shutil
+from warehouse.utils import get_base_path
 
 from warehouse.controllers_material import (
     get_materials, update_material, get_material_batches, get_material_withdrawals,
@@ -14,7 +19,7 @@ from warehouse.controllers_material import (
 )
 from warehouse.controllers import get_all_users, create_withdrawal, get_active_item_withdrawals
 from warehouse.models import MaterialType, Material
-from warehouse.ui.material_form import MaterialFormDialog
+from warehouse.ui.material_form import MaterialFormDialog, ImageDropWidget
 
 
 class MaterialDetailDialog(QDialog):
@@ -134,11 +139,39 @@ class MaterialDetailDialog(QDialog):
         code_widget = QWidget()
         code_widget.setLayout(self.code_stack)
 
-        self.image_label = QLabel(self.material.image_path or "" if self.material.image_path is not None else "")
-        self.image_input = QLineEdit(self.material.image_path or "" if self.material.image_path is not None else "")
+        # Image Field
+        self.image_view = QLabel()
+        self.image_view.setFixedSize(200, 200)
+        self.image_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_view.setStyleSheet("border: 1px solid #ddd; background-color: #f9f9f9;")
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        200, 200,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    self.image_view.setPixmap(scaled)
+                else:
+                    self.image_view.setText("Immagine non valida")
+            else:
+                self.image_view.setText("File non trovato")
+        else:
+            self.image_view.setText("Nessuna immagine")
+
+        self.image_edit = ImageDropWidget()
+        if self.material.image_path:
+             full_path = os.path.join(get_base_path(), self.material.image_path)
+             if os.path.exists(full_path):
+                 self.image_edit.load_image(full_path)
+
         self.image_stack = QStackedLayout()
-        self.image_stack.addWidget(self.image_label)
-        self.image_stack.addWidget(self.image_input)
+        self.image_stack.addWidget(self.image_view)
+        self.image_stack.addWidget(self.image_edit)
         image_widget = QWidget()
         image_widget.setLayout(self.image_stack)
         
@@ -421,6 +454,43 @@ class MaterialDetailDialog(QDialog):
         finally:
             self.add_withdrawal_button.setEnabled(True)
 
+    def save_image(self):
+        if not self.image_edit.current_image_path:
+            return None
+            
+        # Check if the image is the same as the existing one
+        current_full_path = os.path.abspath(self.image_edit.current_image_path)
+        existing_full_path = ""
+        if self.material.image_path:
+            existing_full_path = os.path.abspath(os.path.join(get_base_path(), self.material.image_path))
+            
+        if current_full_path == existing_full_path:
+            return self.material.image_path
+
+        try:
+            images_dir = os.path.join(get_base_path(), "images")
+            os.makedirs(images_dir, exist_ok=True)
+            
+            ext = os.path.splitext(self.image_edit.current_image_path)[1] or ".png"
+            filename = f"{uuid.uuid4()}{ext}"
+            target_path = os.path.join(images_dir, filename)
+            
+            image = QImage(self.image_edit.current_image_path)
+            max_size = 1024
+            if image.width() > max_size or image.height() > max_size:
+                image = image.scaled(
+                    max_size, max_size,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+            
+            image.save(target_path)
+            return os.path.join("images", filename)
+            
+        except Exception as e:
+            print(f"Errore salvataggio immagine: {e}")
+            return None
+
     @asyncSlot()
     async def save_changes(self, *args):
         self.buttons.setEnabled(False)
@@ -432,6 +502,8 @@ class MaterialDetailDialog(QDialog):
             return
 
         try:
+            image_path = self.save_image()
+            
             updated = await update_material(
                 self.material.id,
                 denomination=denomination,
@@ -439,7 +511,7 @@ class MaterialDetailDialog(QDialog):
                 part_number=self.part_number_input.text().strip() or None,
                 serial_number=self.serial_number_input.text().strip() or None,
                 code=self.code_input.text().strip() or None,
-                image_path=self.image_input.text().strip() or None,
+                image_path=image_path,
                 location=self.location_input.text().strip() or None if self.material.material_type == MaterialType.ITEM else None
             )
             self.material.denomination = updated.denomination
@@ -471,6 +543,33 @@ class MaterialItemWidget(QWidget):
     def setup_ui(self):
         layout = QHBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Image Thumbnail
+        image_label = QLabel()
+        image_label.setFixedSize(64, 64)
+        image_label.setStyleSheet("border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if self.material.image_path:
+            # Resolve path using get_base_path
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        64, 64,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    image_label.setPixmap(scaled)
+                else:
+                    image_label.setText("No Img")
+            else:
+                image_label.setText("No File")
+        else:
+            image_label.setText("No Img")
+            
+        layout.addWidget(image_label)
         
         # Main info container
         info_layout = QGridLayout()
@@ -592,9 +691,20 @@ class MaterialsTab(QWidget):
                 if mat.part_number:
                     display_text += f" (PN: {mat.part_number})"
                 
+                # Build comprehensive search text
+                search_text = (
+                    f"{mat.denomination or ''} "
+                    f"{mat.part_number or ''} "
+                    f"{mat.ndc or ''} "
+                    f"{mat.code or ''} "
+                    f"{mat.serial_number or ''} "
+                    f"{str(mat.id)}"
+                )
+
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, mat.id)
                 item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
+                item.setData(Qt.ItemDataRole.UserRole + 2, search_text)  # Store full search text
                 
                 widget = MaterialItemWidget(mat)
                 item.setSizeHint(widget.sizeHint())
@@ -618,9 +728,20 @@ class MaterialsTab(QWidget):
                 if mat.part_number:
                     display_text += f" (PN: {mat.part_number})"
                 
+                # Build comprehensive search text
+                search_text = (
+                    f"{mat.denomination or ''} "
+                    f"{mat.part_number or ''} "
+                    f"{mat.ndc or ''} "
+                    f"{mat.code or ''} "
+                    f"{mat.serial_number or ''} "
+                    f"{str(mat.id)}"
+                )
+
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, mat.id)
                 item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
+                item.setData(Qt.ItemDataRole.UserRole + 2, search_text) # Store full search text
                 
                 widget = MaterialItemWidget(mat)
                 item.setSizeHint(widget.sizeHint())
@@ -640,7 +761,8 @@ class MaterialsTab(QWidget):
         for lst in lists:
             for i in range(lst.count()):
                 item = lst.item(i)
-                filter_text = item.data(Qt.ItemDataRole.UserRole + 1) or ""
+                # Retrieve the full search text stored in UserRole + 2
+                filter_text = item.data(Qt.ItemDataRole.UserRole + 2) or ""
                 item.setHidden(query not in filter_text.lower())
 
     def open_material_detail(self, item):
