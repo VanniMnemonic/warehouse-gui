@@ -15,11 +15,12 @@ from warehouse.utils import get_base_path
 
 from warehouse.controllers_material import (
     get_materials, update_material, get_material_batches, get_material_withdrawals,
-    create_batch
+    create_batch, get_material_dependencies, delete_material
 )
 from warehouse.controllers import get_all_users, create_withdrawal, get_active_item_withdrawals
 from warehouse.models import MaterialType, Material
 from warehouse.ui.material_form import MaterialFormDialog, ImageDropWidget
+from warehouse.ui.components import BarcodeSearchComboBox
 
 
 class MaterialDetailDialog(QDialog):
@@ -60,6 +61,11 @@ class MaterialDetailDialog(QDialog):
         self.edit_button = QPushButton("Modifica")
         self.edit_button.clicked.connect(self.enable_edit_mode)
         main_layout.addWidget(self.edit_button)
+
+        self.delete_button = QPushButton("Elimina Oggetto" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
+        self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
+        self.delete_button.clicked.connect(self.delete_material_action)
+        main_layout.addWidget(self.delete_button)
 
         self.is_withdrawn = False
         if self.material.material_type == MaterialType.ITEM:
@@ -215,6 +221,47 @@ class MaterialDetailDialog(QDialog):
             self.location_stack.setCurrentIndex(1)
         self.save_button.setEnabled(True)
         self.edit_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
+
+    @asyncSlot()
+    async def delete_material_action(self):
+        try:
+            batch_count, withdrawal_count = await get_material_dependencies(self.material.id)
+            
+            item_type_str = "questo oggetto" if self.material.material_type == MaterialType.ITEM else "questo consumabile"
+            msg = f"Sei sicuro di voler eliminare {item_type_str}: {self.material.denomination}?"
+            
+            dependencies_msg = []
+            if batch_count > 0:
+                dependencies_msg.append(f"{batch_count} lotti")
+            if withdrawal_count > 0:
+                dependencies_msg.append(f"{withdrawal_count} prelievi")
+                
+            if dependencies_msg:
+                msg += f"\n\nATTENZIONE: Eliminando {item_type_str} verranno eliminati anche:\n- " + "\n- ".join(dependencies_msg)
+            else:
+                msg += "\n\nNessun dato correlato verrà eliminato."
+                
+            reply = QMessageBox.question(
+                self, 
+                "Conferma Eliminazione", 
+                msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                await delete_material(self.material.id)
+                QMessageBox.information(self, "Eliminato", "Elemento eliminato con successo.")
+                
+                parent = self.parent()
+                if hasattr(parent, "refresh_materials"):
+                    parent.refresh_materials()
+                    
+                self.accept()
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile eliminare l'elemento: {e}")
 
     def setup_batches_section(self):
         if self.material.material_type == MaterialType.ITEM:
@@ -309,7 +356,7 @@ class MaterialDetailDialog(QDialog):
 
         form_layout = QFormLayout()
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
-        self.new_withdrawal_user_combo = QComboBox()
+        self.new_withdrawal_user_combo = BarcodeSearchComboBox()
         self.new_withdrawal_amount_input = QLineEdit()
         self.new_withdrawal_notes_input = QLineEdit()
 
@@ -412,7 +459,18 @@ class MaterialDetailDialog(QDialog):
             self.new_withdrawal_user_combo.clear()
             for user in users:
                 label = f"{user.first_name} {user.last_name} [{user.custom_id}]"
-                self.new_withdrawal_user_combo.addItem(label, user.id)
+                
+                # Build comprehensive search text
+                search_text = (
+                    f"{user.first_name} {user.last_name} "
+                    f"{user.custom_id or ''} "
+                    f"{user.workplace or ''} "
+                    f"{user.mobile or ''} "
+                    f"{user.email or ''} "
+                    f"{user.code or ''}"
+                )
+                
+                self.new_withdrawal_user_combo.addItem(label, user.id, barcode=user.code, search_text=search_text)
         except Exception as e:
             QMessageBox.warning(self, "Errore Caricamento Dati", f"Impossibile caricare gli utenti: {e}")
 

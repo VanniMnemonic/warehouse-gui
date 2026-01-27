@@ -14,10 +14,13 @@ from warehouse.controllers import (
     update_user,
     get_user_withdrawals,
     create_withdrawal,
+    get_user_dependencies,
+    delete_user,
 )
 from warehouse.controllers_material import get_materials
 from warehouse.models import User, MaterialType
 from warehouse.ui.user_form import UserFormDialog
+from warehouse.ui.components import BarcodeSearchComboBox
 
 
 class UserDetailDialog(QDialog):
@@ -51,6 +54,11 @@ class UserDetailDialog(QDialog):
         self.edit_button = QPushButton("Modifica")
         self.edit_button.clicked.connect(self.enable_edit_mode)
         main_layout.addWidget(self.edit_button)
+
+        self.delete_button = QPushButton("Elimina Utente")
+        self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
+        self.delete_button.clicked.connect(self.delete_user_action)
+        main_layout.addWidget(self.delete_button)
 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -168,6 +176,39 @@ class UserDetailDialog(QDialog):
         self.notes_stack.setCurrentIndex(1)
         self.save_button.setEnabled(True)
         self.edit_button.setEnabled(False)
+        self.delete_button.setEnabled(False)
+
+    @asyncSlot()
+    async def delete_user_action(self):
+        try:
+            withdrawal_count = await get_user_dependencies(self.user.id)
+            
+            msg = f"Sei sicuro di voler eliminare l'utente {self.user.first_name} {self.user.last_name}?"
+            if withdrawal_count > 0:
+                msg += f"\n\nATTENZIONE: Eliminando questo utente verranno eliminati anche {withdrawal_count} prelievi associati!"
+            else:
+                msg += "\n\nNessun prelievo associato verrà eliminato."
+                
+            reply = QMessageBox.question(
+                self, 
+                "Conferma Eliminazione", 
+                msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                await delete_user(self.user.id)
+                QMessageBox.information(self, "Eliminato", "Utente eliminato con successo.")
+                
+                parent = self.parent()
+                if hasattr(parent, "refresh_users"):
+                    parent.refresh_users()
+                    
+                self.accept() # Close dialog with Accepted result
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile eliminare l'utente: {e}")
 
     def setup_withdrawals_section(self):
         group = QGroupBox("Prelievi")
@@ -185,7 +226,7 @@ class UserDetailDialog(QDialog):
 
         form_layout = QFormLayout()
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
-        self.new_withdrawal_material_combo = QComboBox()
+        self.new_withdrawal_material_combo = BarcodeSearchComboBox()
         self.new_withdrawal_amount_input = QLineEdit()
         self.new_withdrawal_notes_input = QLineEdit()
 
@@ -234,7 +275,18 @@ class UserDetailDialog(QDialog):
                     label += " [Oggetto]"
                 else:
                     label += " [Consumabile]"
-                self.new_withdrawal_material_combo.addItem(label, mat.id)
+                
+                # Build comprehensive search text
+                search_text = (
+                    f"{mat.denomination or ''} "
+                    f"{mat.part_number or ''} "
+                    f"{mat.ndc or ''} "
+                    f"{mat.code or ''} "
+                    f"{mat.serial_number or ''} "
+                    f"{str(mat.id)}"
+                )
+                
+                self.new_withdrawal_material_combo.addItem(label, mat.id, barcode=mat.code, search_text=search_text)
         except Exception as e:
             QMessageBox.warning(
                 self, "Errore Caricamento Dati", f"Impossibile caricare i materiali: {e}"

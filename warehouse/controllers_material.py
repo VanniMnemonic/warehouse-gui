@@ -137,3 +137,43 @@ async def update_material(material_id: int, **kwargs) -> Material:
         await session.commit()
         await session.refresh(material)
         return material
+
+
+async def get_material_dependencies(material_id: int) -> tuple[int, int]:
+    """Returns a tuple (batch_count, withdrawal_count) associated with the material."""
+    async with get_session() as session:
+        # Count batches
+        batch_stmt = select(Batch).where(Batch.material_id == material_id)
+        batch_res = await session.execute(batch_stmt)
+        batch_count = len(batch_res.scalars().all())
+        
+        # Count withdrawals
+        withdrawal_stmt = select(Withdrawal).where(Withdrawal.material_id == material_id)
+        withdrawal_res = await session.execute(withdrawal_stmt)
+        withdrawal_count = len(withdrawal_res.scalars().all())
+        
+        return batch_count, withdrawal_count
+
+
+async def delete_material(material_id: int):
+    """Deletes a material and its associated batches and withdrawals."""
+    async with get_session() as session:
+        material = await session.get(Material, material_id)
+        if not material:
+            raise ValueError("Material not found")
+        
+        # Delete withdrawals
+        w_stmt = select(Withdrawal).where(Withdrawal.material_id == material_id)
+        w_res = await session.execute(w_stmt)
+        for w in w_res.scalars().all():
+            await session.delete(w)
+            
+        # Delete batches
+        b_stmt = select(Batch).where(Batch.material_id == material_id)
+        b_res = await session.execute(b_stmt)
+        for b in b_res.scalars().all():
+            await session.delete(b)
+            
+        await session.delete(material)
+        await session.commit()
+

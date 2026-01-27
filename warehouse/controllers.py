@@ -69,6 +69,33 @@ async def update_user(user_id: int, **kwargs) -> User:
         return user
 
 
+async def get_user_dependencies(user_id: int) -> int:
+    """Returns the number of withdrawals associated with the user."""
+    async with get_session() as session:
+        statement = select(Withdrawal).where(Withdrawal.user_id == user_id)
+        result = await session.execute(statement)
+        return len(result.scalars().all())
+
+
+async def delete_user(user_id: int):
+    """Deletes a user and their associated withdrawals."""
+    async with get_session() as session:
+        user = await session.get(User, user_id)
+        if not user:
+            raise ValueError("User not found")
+        
+        # Delete withdrawals first
+        statement = select(Withdrawal).where(Withdrawal.user_id == user_id)
+        result = await session.execute(statement)
+        withdrawals = result.scalars().all()
+        for w in withdrawals:
+            await session.delete(w)
+            
+        await session.delete(user)
+        await session.commit()
+
+
+
 async def create_withdrawal(
     user_id: int,
     material_id: int,
