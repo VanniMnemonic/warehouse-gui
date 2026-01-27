@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
     QPushButton, QMessageBox, QLabel, QHBoxLayout, QDialog, QDialogButtonBox,
     QRadioButton, QButtonGroup, QFrame, QGridLayout
 )
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QColor, QPalette, QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal
 from qasync import asyncSlot
 import asyncio
+import os
 from warehouse.controllers import get_all_withdrawals, return_withdrawal_item
 from warehouse.models import MaterialType, Withdrawal, User, Material
+from warehouse.utils import get_base_path
 
 class WithdrawalItemWidget(QWidget):
     return_requested = pyqtSignal(int)
@@ -27,6 +29,32 @@ class WithdrawalItemWidget(QWidget):
     def setup_ui(self):
         layout = QHBoxLayout()
         layout.setContentsMargins(5, 5, 5, 5)
+        
+        image_label = QLabel()
+        image_label.setFixedSize(64, 64)
+        image_label.setStyleSheet("border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        64,
+                        64,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    image_label.setPixmap(scaled)
+                else:
+                    image_label.setText("No Img")
+            else:
+                image_label.setText("No File")
+        else:
+            image_label.setText("No Img")
+        
+        layout.addWidget(image_label)
         
         # Main info container
         info_layout = QGridLayout()

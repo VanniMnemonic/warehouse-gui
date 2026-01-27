@@ -38,34 +38,37 @@ class MaterialDetailDialog(QDialog):
 
         main_layout = QVBoxLayout()
         
-        # Scroll Area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        content = QWidget()
-        self.content_layout = QVBoxLayout(content)
-        self.content_layout.setSpacing(20)
+        # Tab Widget
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
 
         # Section 1: Details
+        self.details_tab = QWidget()
         self.setup_details_section()
+        self.tabs.addTab(self.details_tab, "Dettagli")
 
         # Section 2: Batches
-        self.setup_batches_section()
+        if self.material.material_type == MaterialType.CONSUMABLE:
+            self.batches_tab = QWidget()
+            self.setup_batches_section()
+            self.tabs.addTab(self.batches_tab, "Aggiungi Lotto")
 
         # Section 3: Withdrawals
+        self.withdrawals_tab = QWidget()
         self.setup_withdrawals_section()
-        
-        self.content_layout.addStretch()
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
+        self.tabs.addTab(self.withdrawals_tab, "Aggiungi Prelievo")
 
+        # Action Buttons Layout (at the bottom)
+        bottom_layout = QVBoxLayout()
+        
         self.edit_button = QPushButton("Modifica")
         self.edit_button.clicked.connect(self.enable_edit_mode)
-        main_layout.addWidget(self.edit_button)
+        bottom_layout.addWidget(self.edit_button)
 
         self.delete_button = QPushButton("Elimina Oggetto" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
         self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
         self.delete_button.clicked.connect(self.delete_material_action)
-        main_layout.addWidget(self.delete_button)
+        bottom_layout.addWidget(self.delete_button)
 
         self.is_withdrawn = False
         if self.material.material_type == MaterialType.ITEM:
@@ -79,7 +82,7 @@ class MaterialDetailDialog(QDialog):
             self.withdraw_btn.clicked.connect(self.withdraw_item_action)
             self.actions_layout.addWidget(self.withdraw_btn)
             
-            main_layout.addLayout(self.actions_layout)
+            bottom_layout.addLayout(self.actions_layout)
             self.update_action_buttons()
 
         self.buttons = QDialogButtonBox(
@@ -89,7 +92,9 @@ class MaterialDetailDialog(QDialog):
         self.save_button.clicked.connect(self.save_changes)
         self.save_button.setEnabled(False)
         self.buttons.rejected.connect(self.reject)
-        main_layout.addWidget(self.buttons)
+        bottom_layout.addWidget(self.buttons)
+        
+        main_layout.addLayout(bottom_layout)
 
         self.setLayout(main_layout)
 
@@ -97,9 +102,15 @@ class MaterialDetailDialog(QDialog):
         self.load_users_for_withdrawal()
 
     def setup_details_section(self):
-        group = QGroupBox("Dettagli")
         layout = QVBoxLayout()
-        form_layout = QFormLayout()
+        # Remove scroll area if not needed or keep it if content is long
+        # Using a ScrollArea inside the tab is good practice
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        
+        content = QWidget()
+        form_layout = QFormLayout(content)
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
 
         id_label = QLabel(str(self.material.id) if self.material.id is not None else "")
@@ -203,9 +214,9 @@ class MaterialDetailDialog(QDialog):
             
         form_layout.addRow("Percorso Immagine:", image_widget)
 
-        layout.addLayout(form_layout)
-        group.setLayout(layout)
-        self.content_layout.addWidget(group)
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        self.details_tab.setLayout(layout)
 
     def enable_edit_mode(self):
         if self.edit_mode:
@@ -267,8 +278,13 @@ class MaterialDetailDialog(QDialog):
         if self.material.material_type == MaterialType.ITEM:
             return
             
-        group = QGroupBox("Lotti")
         layout = QVBoxLayout()
+        
+        # Existing Batches Table
+        table_label = QLabel("Lotti Esistenti")
+        table_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(table_label)
+        
         self.batches_table = QTableWidget()
         self.batches_table.setMinimumHeight(150)
         self.batches_table.setColumnCount(4)
@@ -276,33 +292,35 @@ class MaterialDetailDialog(QDialog):
         self.batches_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.batches_table)
 
-        if self.material.material_type == MaterialType.CONSUMABLE:
-            form_layout = QFormLayout()
-            form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
-            
-            self.new_batch_expiration = QDateEdit()
-            self.new_batch_expiration.setDate(QDate.currentDate())
-            self.new_batch_expiration.setCalendarPopup(True)
-            self.new_batch_expiration.setDisplayFormat("yyyy-MM-dd")
-            
-            self.new_batch_amount = QLineEdit()
-            self.new_batch_amount.setPlaceholderText("Quantità")
-            
-            self.new_batch_location = QLineEdit()
-            self.new_batch_location.setPlaceholderText("Posizione")
-            
-            form_layout.addRow("Scadenza:", self.new_batch_expiration)
-            form_layout.addRow("Quantità:", self.new_batch_amount)
-            form_layout.addRow("Posizione:", self.new_batch_location)
-            
-            layout.addLayout(form_layout)
-            
-            self.add_batch_button = QPushButton("Aggiungi Lotto")
-            self.add_batch_button.clicked.connect(self.add_batch)
-            layout.addWidget(self.add_batch_button)
-
-        group.setLayout(layout)
-        self.content_layout.addWidget(group)
+        # Add New Batch Form
+        form_group = QGroupBox("Nuovo Lotto")
+        form_layout = QFormLayout()
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        
+        self.new_batch_expiration = QDateEdit()
+        self.new_batch_expiration.setDate(QDate.currentDate())
+        self.new_batch_expiration.setCalendarPopup(True)
+        self.new_batch_expiration.setDisplayFormat("yyyy-MM-dd")
+        
+        self.new_batch_amount = QLineEdit()
+        self.new_batch_amount.setPlaceholderText("Quantità")
+        
+        self.new_batch_location = QLineEdit()
+        self.new_batch_location.setPlaceholderText("Posizione")
+        
+        form_layout.addRow("Scadenza:", self.new_batch_expiration)
+        form_layout.addRow("Quantità:", self.new_batch_amount)
+        form_layout.addRow("Posizione:", self.new_batch_location)
+        
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
+        
+        self.add_batch_button = QPushButton("Aggiungi Lotto")
+        self.add_batch_button.clicked.connect(self.add_batch)
+        layout.addWidget(self.add_batch_button)
+        
+        layout.addStretch()
+        self.batches_tab.setLayout(layout)
 
     @asyncSlot()
     async def add_batch(self, *args):
@@ -341,8 +359,13 @@ class MaterialDetailDialog(QDialog):
             self.add_batch_button.setEnabled(True)
 
     def setup_withdrawals_section(self):
-        group = QGroupBox("Prelievi")
         layout = QVBoxLayout()
+        
+        # Existing Withdrawals Table
+        table_label = QLabel("Storico Prelievi")
+        table_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(table_label)
+        
         self.withdrawals_table = QTableWidget()
         self.withdrawals_table.setMinimumHeight(150)
         self.withdrawals_table.setColumnCount(4)
@@ -354,9 +377,17 @@ class MaterialDetailDialog(QDialog):
         )
         layout.addWidget(self.withdrawals_table)
 
+        # Add New Withdrawal Form
+        form_group = QGroupBox("Nuovo Prelievo")
         form_layout = QFormLayout()
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+
         self.new_withdrawal_user_combo = BarcodeSearchComboBox()
+        self.user_search_input = QLineEdit()
+        self.user_search_input.setPlaceholderText("Cerca utente in tutti i campi...")
+        self.user_search_input.textChanged.connect(self.new_withdrawal_user_combo.setEditText)
+
+        form_layout.addRow("Cerca:", self.user_search_input)
         self.new_withdrawal_amount_input = QLineEdit()
         self.new_withdrawal_notes_input = QLineEdit()
 
@@ -364,14 +395,15 @@ class MaterialDetailDialog(QDialog):
         form_layout.addRow("Quantità:", self.new_withdrawal_amount_input)
         form_layout.addRow("Note:", self.new_withdrawal_notes_input)
 
-        layout.addLayout(form_layout)
+        form_group.setLayout(form_layout)
+        layout.addWidget(form_group)
 
         self.add_withdrawal_button = QPushButton("Aggiungi Prelievo")
         self.add_withdrawal_button.clicked.connect(self.add_material_withdrawal)
         layout.addWidget(self.add_withdrawal_button)
-
-        group.setLayout(layout)
-        self.content_layout.addWidget(group)
+        
+        layout.addStretch()
+        self.withdrawals_tab.setLayout(layout)
 
     def update_action_buttons(self):
         if self.material.material_type != MaterialType.ITEM:

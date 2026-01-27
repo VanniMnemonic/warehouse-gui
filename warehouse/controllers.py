@@ -113,6 +113,16 @@ async def create_withdrawal(
         if not material:
             raise ValueError("Material not found")
 
+        if material.material_type == MaterialType.ITEM:
+            # Check if item is already withdrawn (active withdrawal exists)
+            active_withdrawal_stmt = select(Withdrawal).where(
+                Withdrawal.material_id == material_id,
+                Withdrawal.return_date == None
+            )
+            result = await session.execute(active_withdrawal_stmt)
+            if result.scalars().first():
+                raise ValueError(f"L'oggetto '{material.denomination}' è già stato prelevato e non ancora restituito.")
+
         if material.material_type == MaterialType.CONSUMABLE:
             # Get batches sorted by expiration (FEFO)
             statement = select(Batch).where(Batch.material_id == material_id).where(Batch.amount > 0).order_by(Batch.expiration)

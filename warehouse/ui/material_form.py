@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDialogButtonBox, 
-    QMessageBox, QLabel, QFileDialog
+    QMessageBox, QLabel, QFileDialog, QDateEdit, QGroupBox
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QDate
 from PyQt6.QtGui import QPixmap, QImage
 from qasync import asyncSlot
 import os
@@ -10,7 +10,7 @@ import uuid
 import shutil
 from warehouse.utils import get_base_path
 from warehouse.models import MaterialType
-from warehouse.controllers_material import create_material
+from warehouse.controllers_material import create_material, create_batch
 
 class ImageDropWidget(QLabel):
     def __init__(self, parent=None):
@@ -112,6 +112,29 @@ class MaterialFormDialog(QDialog):
         
         self.layout.addLayout(self.form_layout)
         
+        # Initial Batch for Consumables
+        if self.material_type == MaterialType.CONSUMABLE:
+            self.initial_batch_group = QGroupBox("Lotto Iniziale (Opzionale)")
+            batch_layout = QFormLayout()
+            
+            self.expiration_input = QDateEdit()
+            self.expiration_input.setDate(QDate.currentDate())
+            self.expiration_input.setCalendarPopup(True)
+            self.expiration_input.setDisplayFormat("yyyy-MM-dd")
+            
+            self.amount_input = QLineEdit()
+            self.amount_input.setPlaceholderText("Quantità")
+            
+            self.batch_location_input = QLineEdit()
+            self.batch_location_input.setPlaceholderText("Posizione")
+            
+            batch_layout.addRow("Scadenza:", self.expiration_input)
+            batch_layout.addRow("Quantità:", self.amount_input)
+            batch_layout.addRow("Posizione:", self.batch_location_input)
+            
+            self.initial_batch_group.setLayout(batch_layout)
+            self.layout.addWidget(self.initial_batch_group)
+
         # Buttons
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -187,9 +210,21 @@ class MaterialFormDialog(QDialog):
                 image_path=image_path,
                 location=self.location_input.text().strip() or None if self.material_type == MaterialType.ITEM else None
             )
-            type_msg = "Oggetto" if self.material_type == MaterialType.ITEM else "Consumabile"
-            QMessageBox.information(self, "Successo", f"{type_msg} creato con successo!")
-            super().accept()
+
+            if self.material_type == MaterialType.CONSUMABLE:
+                amount_text = self.amount_input.text().strip()
+                if amount_text and amount_text.isdigit() and int(amount_text) > 0:
+                    try:
+                        await create_batch(
+                            material_id=material.id,
+                            expiration=self.expiration_input.date().toPyDate(),
+                            amount=int(amount_text),
+                            location=self.batch_location_input.text().strip() or None
+                        )
+                    except Exception as e:
+                        QMessageBox.warning(self, "Attenzione", f"Consumabile creato, ma errore creazione lotto: {e}")
+
+            self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile creare il materiale: {str(e)}")
+            QMessageBox.critical(self, "Errore", f"Impossibile creare l'elemento: {e}")
             self.buttons.setEnabled(True)
