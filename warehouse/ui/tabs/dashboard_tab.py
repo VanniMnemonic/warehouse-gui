@@ -8,9 +8,69 @@ from qasync import asyncSlot
 from datetime import date, timedelta
 import os
 from warehouse.utils import get_base_path
-from warehouse.controllers_material import get_expiring_batches, get_inefficient_materials, get_consumable_stocks
+from warehouse.controllers_material import (
+    get_expiring_batches, 
+    get_inefficient_materials, 
+    get_consumable_stocks,
+    get_low_stock_materials
+)
 from warehouse.controllers import get_active_item_withdrawals
 from warehouse.models import Batch, Material
+
+class LowStockItemWidget(QWidget):
+    def __init__(self, material: Material, current_stock: int):
+        super().__init__()
+        self.material = material
+        self.current_stock = current_stock
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QHBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Image Thumbnail
+        image_label = QLabel()
+        image_label.setFixedSize(48, 48)
+        image_label.setStyleSheet("border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;")
+        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        48, 48,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    image_label.setPixmap(scaled)
+                else:
+                    image_label.setText("No Img")
+            else:
+                image_label.setText("No File")
+        else:
+            image_label.setText("No Img")
+        
+        layout.addWidget(image_label)
+        
+        # Details Layout
+        details_layout = QGridLayout()
+        details_layout.setVerticalSpacing(2)
+        
+        # Name
+        lbl_name = QLabel(f"{self.material.denomination}")
+        lbl_name.setStyleSheet("font-weight: bold; font-size: 14px;")
+        details_layout.addWidget(lbl_name, 0, 0, 1, 2)
+        
+        # Stock Info
+        stock_text = f"Disponibile: {self.current_stock} / Min: {self.material.min_stock}"
+        lbl_stock = QLabel(stock_text)
+        lbl_stock.setStyleSheet("color: #d32f2f; font-weight: bold;")
+        details_layout.addWidget(lbl_stock, 1, 0, 1, 2)
+        
+        layout.addLayout(details_layout)
+        self.setLayout(layout)
 
 class ExpiringBatchItemWidget(QWidget):
     def __init__(self, batch: Batch, material: Material, available_qty: int | None = None):
@@ -177,6 +237,15 @@ class DashboardTab(QWidget):
         inefficient_layout.addWidget(self.inefficient_list)
         inefficient_group.setLayout(inefficient_layout)
         
+        # Section 3: Low Stock Consumables
+        low_stock_group = QGroupBox("Consumabili Sotto Scorta")
+        low_stock_layout = QVBoxLayout()
+        self.low_stock_list = QListWidget()
+        self.low_stock_list.setSpacing(2)
+        low_stock_layout.addWidget(self.low_stock_list)
+        low_stock_group.setLayout(low_stock_layout)
+
+        main_layout.addWidget(low_stock_group)
         main_layout.addWidget(expiring_group)
         main_layout.addWidget(inefficient_group)
         
@@ -188,7 +257,16 @@ class DashboardTab(QWidget):
             # Load Data
             consumable_stocks = await get_consumable_stocks()
             active_withdrawals = await get_active_item_withdrawals()
+            low_stock_data = await get_low_stock_materials()
             
+            # Load Low Stock Consumables
+            self.low_stock_list.clear()
+            for material, current_stock in low_stock_data:
+                item = QListWidgetItem(self.low_stock_list)
+                widget = LowStockItemWidget(material, current_stock)
+                item.setSizeHint(widget.sizeHint())
+                self.low_stock_list.setItemWidget(item, widget)
+
             # Load Expiring Batches
             self.expiring_list.clear()
             batches_data = await get_expiring_batches(limit=50)

@@ -95,6 +95,9 @@ class MaterialFormDialog(QDialog):
         self.serial_number_input = QLineEdit()
         self.code_input = QLineEdit()
         self.location_input = QLineEdit()
+        self.min_stock_input = QLineEdit()
+        self.min_stock_input.setText("0")
+        self.min_stock_input.setPlaceholderText("Scorta Minima")
         
         # Image Drop Widget
         self.image_widget = ImageDropWidget()
@@ -104,6 +107,9 @@ class MaterialFormDialog(QDialog):
         self.form_layout.addRow("Part Number:", self.part_number_input)
         self.form_layout.addRow("Numero di Serie:", self.serial_number_input)
         self.form_layout.addRow("Codice:", self.code_input)
+        
+        if self.material_type == MaterialType.CONSUMABLE:
+            self.form_layout.addRow("Scorta Minima:", self.min_stock_input)
         
         if self.material_type == MaterialType.ITEM:
             self.form_layout.addRow("Posizione:", self.location_input)
@@ -200,6 +206,13 @@ class MaterialFormDialog(QDialog):
         image_path = self.save_image()
 
         try:
+            min_stock = 0
+            if self.material_type == MaterialType.CONSUMABLE:
+                 try:
+                     min_stock = int(self.min_stock_input.text().strip())
+                 except ValueError:
+                     min_stock = 0
+
             material = await create_material(
                 material_type=self.material_type,
                 denomination=denomination,
@@ -208,7 +221,8 @@ class MaterialFormDialog(QDialog):
                 serial_number=self.serial_number_input.text().strip() or None,
                 code=self.code_input.text().strip() or None,
                 image_path=image_path,
-                location=self.location_input.text().strip() or None if self.material_type == MaterialType.ITEM else None
+                location=self.location_input.text().strip() or None if self.material_type == MaterialType.ITEM else None,
+                min_stock=min_stock
             )
 
             if self.material_type == MaterialType.CONSUMABLE:

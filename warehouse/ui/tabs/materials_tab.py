@@ -116,6 +116,9 @@ class MaterialDetailDialog(QDialog):
         add_row("Numero di Serie", self.material.serial_number)
         add_row("Codice", self.material.code)
         
+        if self.material.material_type == MaterialType.CONSUMABLE:
+             add_row("Scorta Minima", str(self.material.min_stock))
+        
         if self.material.material_type == MaterialType.ITEM:
             self.location_label = add_row("Posizione", "-")
             
@@ -170,6 +173,10 @@ class MaterialDetailDialog(QDialog):
         form_layout.addRow("Part Number:", self.part_number_input)
         form_layout.addRow("Numero di Serie:", self.serial_number_input)
         form_layout.addRow("Codice:", self.code_input)
+        
+        if self.material.material_type == MaterialType.CONSUMABLE:
+             self.min_stock_edit = QLineEdit(str(self.material.min_stock))
+             form_layout.addRow("Scorta Minima:", self.min_stock_edit)
         
         if self.material.material_type == MaterialType.ITEM:
             self.location_input = QLineEdit("")
@@ -602,6 +609,13 @@ class MaterialDetailDialog(QDialog):
         try:
             image_path = self.save_image()
             
+            min_stock = self.material.min_stock
+            if self.material.material_type == MaterialType.CONSUMABLE:
+                 try:
+                     min_stock = int(self.min_stock_edit.text().strip())
+                 except ValueError:
+                     pass
+
             updated = await update_material(
                 self.material.id,
                 denomination=denomination,
@@ -610,7 +624,8 @@ class MaterialDetailDialog(QDialog):
                 serial_number=self.serial_number_input.text().strip() or None,
                 code=self.code_input.text().strip() or None,
                 image_path=image_path,
-                location=self.location_input.text().strip() or None if self.material.material_type == MaterialType.ITEM else None
+                location=self.location_input.text().strip() or None if self.material.material_type == MaterialType.ITEM else None,
+                min_stock=min_stock
             )
             self.material.denomination = updated.denomination
             self.material.ndc = updated.ndc
@@ -618,6 +633,7 @@ class MaterialDetailDialog(QDialog):
             self.material.serial_number = updated.serial_number
             self.material.code = updated.code
             self.material.image_path = updated.image_path
+            self.material.min_stock = updated.min_stock
             
             parent = self.parent()
             if hasattr(parent, "refresh_materials"):
@@ -704,8 +720,15 @@ class MaterialItemWidget(QWidget):
         current_row += 1
         
         if self.material.material_type == MaterialType.CONSUMABLE and self.available_qty is not None:
-             qty_label = QLabel(f"Quantità Disponibile: {self.available_qty}")
-             qty_label.setStyleSheet("color: #00796b; font-weight: bold;")
+             qty_text = f"Quantità Disponibile: {self.available_qty}"
+             style = "color: #00796b; font-weight: bold;"
+             
+             if hasattr(self.material, 'min_stock') and self.material.min_stock > 0 and self.available_qty <= self.material.min_stock:
+                 qty_text += f" (SOTTO SCORTA: {self.material.min_stock})"
+                 style = "color: #d32f2f; font-weight: bold;"
+                 
+             qty_label = QLabel(qty_text)
+             qty_label.setStyleSheet(style)
              info_layout.addWidget(qty_label, current_row, 0, 1, 2)
         elif self.status_text:
              status_label = QLabel(self.status_text)

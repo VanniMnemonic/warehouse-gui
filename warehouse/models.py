@@ -31,6 +31,7 @@ class Material(SQLModel, table=True):
     serial_number: Optional[str] = None
     code: Optional[str] = None
     image_path: Optional[str] = None
+    min_stock: int = Field(default=0)
     is_efficient: bool = Field(default=True)
     
     batches: List["Batch"] = Relationship(back_populates="material")

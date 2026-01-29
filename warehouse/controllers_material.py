@@ -45,7 +45,8 @@ async def create_material(
     serial_number: str | None = None,
     code: str | None = None,
     image_path: str | None = None,
-    location: str | None = None
+    location: str | None = None,
+    min_stock: int = 0
 ):
     from datetime import date
     async with get_session() as session:
@@ -56,7 +57,8 @@ async def create_material(
             part_number=part_number,
             serial_number=serial_number,
             code=code,
-            image_path=image_path
+            image_path=image_path,
+            min_stock=min_stock
         )
         session.add(material)
         await session.commit()
@@ -104,6 +106,35 @@ async def get_inefficient_materials():
         )
         result = await session.execute(statement)
         return result.scalars().all()
+
+
+async def get_low_stock_materials():
+    """
+    Returns a list of (Material, current_stock) for consumables where current_stock <= min_stock.
+    Only considers materials with min_stock > 0.
+    """
+    async with get_session() as session:
+        # Subquery for stock sums
+        stock_subquery = (
+            select(Batch.material_id, func.sum(Batch.amount).label("total_stock"))
+            .group_by(Batch.material_id)
+            .subquery()
+        )
+        
+        # Join Material with stock
+        # Left join because if no batches, stock is None (0)
+        stmt = (
+            select(Material, func.coalesce(stock_subquery.c.total_stock, 0).label("stock"))
+            .outerjoin(stock_subquery, Material.id == stock_subquery.c.material_id)
+            .where(
+                Material.material_type == MaterialType.CONSUMABLE,
+                Material.min_stock > 0,
+                func.coalesce(stock_subquery.c.total_stock, 0) <= Material.min_stock
+            )
+        )
+        
+        results = await session.execute(stmt)
+        return results.all()
 
 
 async def create_batch(

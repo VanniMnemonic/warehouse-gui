@@ -23,6 +23,13 @@ async def init_db():
         except Exception:
             # Column likely exists
             pass
+            
+        # Migration for min_stock column
+        try:
+            await conn.execute(text("ALTER TABLE material ADD COLUMN min_stock INTEGER DEFAULT 0"))
+        except Exception:
+            # Column likely exists
+            pass
 
 @asynccontextmanager
 async def get_session():
