@@ -1,4 +1,4 @@
-from sqlmodel import select, col
+from sqlmodel import select, col, func
 from warehouse.database import get_session
 from warehouse.models import Material, MaterialType, Batch, Withdrawal, User
 
@@ -7,6 +7,22 @@ async def get_materials(material_type: MaterialType):
         statement = select(Material).where(Material.material_type == material_type)
         result = await session.execute(statement)
         return list(result.scalars().all())
+
+async def get_consumable_stocks() -> dict[int, int]:
+    """Returns a dictionary of material_id -> total_stock for consumables."""
+    async with get_session() as session:
+        statement = (
+            select(Batch.material_id, func.sum(Batch.amount))
+            .join(Material)
+            .where(Material.material_type == MaterialType.CONSUMABLE)
+            .group_by(Batch.material_id)
+        )
+        result = await session.execute(statement)
+        # Result rows are (material_id, total_amount)
+        # Note: func.sum might return None if no batches, but inner join ensures matches.
+        # However, if a material has NO batches, it won't be in the result.
+        return {row[0]: (row[1] or 0) for row in result.all()}
+
 
 async def get_material_batches(material_id: int):
     async with get_session() as session:

@@ -186,11 +186,12 @@ async def return_withdrawal_item(withdrawal_id: int, efficient: bool) -> Withdra
         await session.refresh(withdrawal)
         return withdrawal
 
-async def get_active_item_withdrawals() -> set[int]:
+async def get_active_item_withdrawals() -> dict[int, tuple[Withdrawal, User]]:
     async with get_session() as session:
-        # Get material_ids of withdrawals that haven't been returned yet
-        statement = select(Withdrawal.material_id).where(
+        # Get withdrawals that haven't been returned yet, with User info
+        statement = select(Withdrawal, User).join(User).where(
             Withdrawal.return_date == None
         )
         result = await session.execute(statement)
-        return set(result.scalars().all())
+        rows = result.all()
+        return {row.Withdrawal.material_id: (row.Withdrawal, row.User) for row in rows}

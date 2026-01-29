@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox, QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
     QStackedLayout, QComboBox, QDateEdit, QGridLayout, QScrollArea, QGroupBox
 )
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt, QDate, QTimer
 from PyQt6.QtGui import QPixmap, QImage
 from qasync import asyncSlot
 import asyncio
@@ -15,7 +15,7 @@ from warehouse.utils import get_base_path
 
 from warehouse.controllers_material import (
     get_materials, update_material, get_material_batches, get_material_withdrawals,
-    create_batch, get_material_dependencies, delete_material
+    create_batch, get_material_dependencies, delete_material, get_consumable_stocks
 )
 from warehouse.controllers import get_all_users, create_withdrawal, get_active_item_withdrawals
 from warehouse.models import MaterialType, Material
@@ -625,9 +625,11 @@ class MaterialDetailDialog(QDialog):
             self.buttons.setEnabled(True)
 
 class MaterialItemWidget(QWidget):
-    def __init__(self, material: Material):
+    def __init__(self, material: Material, available_qty: int | None = None, status_text: str | None = None):
         super().__init__()
         self.material = material
+        self.available_qty = available_qty
+        self.status_text = status_text
         self.setup_ui()
 
     def setup_ui(self):
@@ -695,6 +697,25 @@ class MaterialItemWidget(QWidget):
             code_label.setStyleSheet("color: #666; font-family: 'Courier New';")
             info_layout.addWidget(code_label, current_row, 1)
 
+        # Row 3: Available Quantity (Consumables) or Status (Items)
+        current_row += 1
+        
+        if self.material.material_type == MaterialType.CONSUMABLE and self.available_qty is not None:
+             qty_label = QLabel(f"Quantità Disponibile: {self.available_qty}")
+             qty_label.setStyleSheet("color: #00796b; font-weight: bold;")
+             info_layout.addWidget(qty_label, current_row, 0, 1, 2)
+        elif self.status_text:
+             status_label = QLabel(self.status_text)
+             if "PRELEVATO" in self.status_text:
+                 status_label.setStyleSheet("color: #d32f2f; font-weight: bold;")
+             elif "DISPONIBILE" in self.status_text:
+                 status_label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+             elif "NON EFFICIENTE" in self.status_text:
+                 status_label.setStyleSheet("color: #f57c00; font-weight: bold;")
+             else:
+                 status_label.setStyleSheet("font-weight: bold;")
+             info_layout.addWidget(status_label, current_row, 0, 1, 2)
+
         layout.addLayout(info_layout, stretch=1)
         self.setLayout(layout)
 
@@ -709,6 +730,10 @@ class MaterialsTab(QWidget):
         
         # Load materials
         self.refresh_materials()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self.refresh_materials)
 
     def setup_ui(self):
         type_str = "Oggetti" if self.material_type == MaterialType.ITEM else "Consumabili"
@@ -763,18 +788,24 @@ class MaterialsTab(QWidget):
     async def refresh_materials(self, *args):
         try:
             self.materials = await get_materials(self.material_type)
-            active_withdrawals = set()
+            active_withdrawals = {}
+            consumable_stocks = {}
             if self.material_type == MaterialType.ITEM:
                 active_withdrawals = await get_active_item_withdrawals()
-            self.update_list(self.materials, active_withdrawals)
+            else:
+                consumable_stocks = await get_consumable_stocks()
+            self.update_list(self.materials, active_withdrawals, consumable_stocks)
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile caricare i materiali: {str(e)}")
 
-    def update_list(self, materials, active_withdrawals=None):
+    def update_list(self, materials, active_withdrawals=None, consumable_stocks=None):
         if self.material_type == MaterialType.ITEM:
             self.list_efficient.clear()
             self.list_inefficient.clear()
             self.list_withdrawn.clear()
+            
+            # Ensure active_withdrawals is a dict, default to empty
+            active_withdrawals = active_withdrawals or {}
             
             for mat in materials:
                 display_text = f"{mat.denomination}"
@@ -796,10 +827,21 @@ class MaterialsTab(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
                 item.setData(Qt.ItemDataRole.UserRole + 2, search_text)  # Store full search text
                 
-                widget = MaterialItemWidget(mat)
+                # Determine status text
+                status_text = None
+                if mat.id in active_withdrawals:
+                    withdrawal, user = active_withdrawals[mat.id]
+                    user_name = f"{user.first_name} {user.last_name}".strip()
+                    status_text = f"PRELEVATO da {user_name}"
+                elif not getattr(mat, 'is_efficient', True):
+                    status_text = "NON EFFICIENTE"
+                else:
+                    status_text = "DISPONIBILE"
+                
+                widget = MaterialItemWidget(mat, status_text=status_text)
                 item.setSizeHint(widget.sizeHint())
                 
-                if active_withdrawals and mat.id in active_withdrawals:
+                if mat.id in active_withdrawals:
                     self.list_withdrawn.addItem(item)
                     self.list_withdrawn.setItemWidget(item, widget)
                 elif getattr(mat, 'is_efficient', True):
@@ -833,7 +875,8 @@ class MaterialsTab(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole + 1, display_text)
                 item.setData(Qt.ItemDataRole.UserRole + 2, search_text) # Store full search text
                 
-                widget = MaterialItemWidget(mat)
+                stock = consumable_stocks.get(mat.id, 0) if consumable_stocks else 0
+                widget = MaterialItemWidget(mat, available_qty=stock)
                 item.setSizeHint(widget.sizeHint())
 
                 self.material_list.addItem(item)
@@ -865,6 +908,7 @@ class MaterialsTab(QWidget):
         if material is None:
             return
         dialog = MaterialDetailDialog(material, self)
+        dialog.finished.connect(self.refresh_materials)
         dialog.open()
 
     @asyncSlot()
