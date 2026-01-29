@@ -27,7 +27,6 @@ class MaterialDetailDialog(QDialog):
     def __init__(self, material: Material, parent=None):
         super().__init__(parent)
         self.material = material
-        self.edit_mode = False
         self.users_for_withdrawal = []
         if material.material_type == MaterialType.ITEM:
             title = "Dettagli Oggetto"
@@ -46,14 +45,19 @@ class MaterialDetailDialog(QDialog):
         self.details_tab = QWidget()
         self.setup_details_section()
         self.tabs.addTab(self.details_tab, "Dettagli")
+        
+        # Section 2: Edit (Modifica)
+        self.edit_tab = QWidget()
+        self.setup_edit_section()
+        self.tabs.addTab(self.edit_tab, "Modifica")
 
-        # Section 2: Batches
+        # Section 3: Batches
         if self.material.material_type == MaterialType.CONSUMABLE:
             self.batches_tab = QWidget()
             self.setup_batches_section()
             self.tabs.addTab(self.batches_tab, "Aggiungi Lotto")
 
-        # Section 3: Withdrawals
+        # Section 4: Withdrawals
         self.withdrawals_tab = QWidget()
         self.setup_withdrawals_section()
         self.tabs.addTab(self.withdrawals_tab, "Aggiungi Prelievo")
@@ -61,15 +65,6 @@ class MaterialDetailDialog(QDialog):
         # Action Buttons Layout (at the bottom)
         bottom_layout = QVBoxLayout()
         
-        self.edit_button = QPushButton("Modifica")
-        self.edit_button.clicked.connect(self.enable_edit_mode)
-        bottom_layout.addWidget(self.edit_button)
-
-        self.delete_button = QPushButton("Elimina Oggetto" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
-        self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
-        self.delete_button.clicked.connect(self.delete_material_action)
-        bottom_layout.addWidget(self.delete_button)
-
         self.is_withdrawn = False
         if self.material.material_type == MaterialType.ITEM:
             self.actions_layout = QHBoxLayout()
@@ -78,21 +73,13 @@ class MaterialDetailDialog(QDialog):
             self.toggle_efficiency_btn.clicked.connect(self.toggle_efficiency)
             self.actions_layout.addWidget(self.toggle_efficiency_btn)
             
-            self.withdraw_btn = QPushButton("Preleva Oggetto")
-            self.withdraw_btn.clicked.connect(self.withdraw_item_action)
-            self.actions_layout.addWidget(self.withdraw_btn)
-            
             bottom_layout.addLayout(self.actions_layout)
             self.update_action_buttons()
 
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
-        self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
-        self.save_button.clicked.connect(self.save_changes)
-        self.save_button.setEnabled(False)
-        self.buttons.rejected.connect(self.reject)
-        bottom_layout.addWidget(self.buttons)
+        # Close Button
+        close_btn = QPushButton("Chiudi")
+        close_btn.clicked.connect(self.reject)
+        bottom_layout.addWidget(close_btn)
         
         main_layout.addLayout(bottom_layout)
 
@@ -103,8 +90,67 @@ class MaterialDetailDialog(QDialog):
 
     def setup_details_section(self):
         layout = QVBoxLayout()
-        # Remove scroll area if not needed or keep it if content is long
-        # Using a ScrollArea inside the tab is good practice
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        
+        content = QWidget()
+        form_layout = QFormLayout(content)
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        # Helper to add row
+        def add_row(label, value):
+            lbl_val = QLabel(str(value) if value else "-")
+            lbl_val.setWordWrap(True)
+            lbl_val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            form_layout.addRow(f"{label}:", lbl_val)
+            return lbl_val
+
+        add_row("ID", self.material.id)
+        add_row("Tipo", self.material.material_type.value)
+        add_row("Denominazione", self.material.denomination)
+        add_row("NDC", self.material.ndc)
+        add_row("Part Number", self.material.part_number)
+        add_row("Numero di Serie", self.material.serial_number)
+        add_row("Codice", self.material.code)
+        
+        if self.material.material_type == MaterialType.ITEM:
+            self.location_label = add_row("Posizione", "-")
+            
+        # Image Field
+        image_view = QLabel()
+        image_view.setFixedSize(300, 300)
+        image_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_view.setStyleSheet("border: 1px solid #ddd; background-color: #f9f9f9; border-radius: 8px;")
+        
+        if self.material.image_path:
+            full_path = os.path.join(get_base_path(), self.material.image_path)
+            if os.path.exists(full_path):
+                pixmap = QPixmap(full_path)
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        300, 300,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    image_view.setPixmap(scaled)
+                else:
+                    image_view.setText("Immagine non valida")
+            else:
+                image_view.setText("File non trovato")
+        else:
+            image_view.setText("Nessuna immagine")
+
+        form_layout.addRow("Immagine:", image_view)
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
+        self.details_tab.setLayout(layout)
+
+    def setup_edit_section(self):
+        layout = QVBoxLayout()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -113,126 +159,47 @@ class MaterialDetailDialog(QDialog):
         form_layout = QFormLayout(content)
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
 
-        id_label = QLabel(str(self.material.id) if self.material.id is not None else "")
-        type_label = QLabel(self.material.material_type.value)
-
-        self.denomination_label = QLabel(self.material.denomination)
         self.denomination_input = QLineEdit(self.material.denomination)
-        self.denomination_stack = QStackedLayout()
-        self.denomination_stack.addWidget(self.denomination_label)
-        self.denomination_stack.addWidget(self.denomination_input)
-        denomination_widget = QWidget()
-        denomination_widget.setLayout(self.denomination_stack)
-
-        self.ndc_label = QLabel(self.material.ndc or "")
         self.ndc_input = QLineEdit(self.material.ndc or "")
-        self.ndc_stack = QStackedLayout()
-        self.ndc_stack.addWidget(self.ndc_label)
-        self.ndc_stack.addWidget(self.ndc_input)
-        ndc_widget = QWidget()
-        ndc_widget.setLayout(self.ndc_stack)
-
-        self.part_number_label = QLabel(self.material.part_number or "")
         self.part_number_input = QLineEdit(self.material.part_number or "")
-        self.part_number_stack = QStackedLayout()
-        self.part_number_stack.addWidget(self.part_number_label)
-        self.part_number_stack.addWidget(self.part_number_input)
-        part_number_widget = QWidget()
-        part_number_widget.setLayout(self.part_number_stack)
-
-        self.serial_number_label = QLabel(self.material.serial_number or "")
         self.serial_number_input = QLineEdit(self.material.serial_number or "")
-        self.serial_number_stack = QStackedLayout()
-        self.serial_number_stack.addWidget(self.serial_number_label)
-        self.serial_number_stack.addWidget(self.serial_number_input)
-        serial_number_widget = QWidget()
-        serial_number_widget.setLayout(self.serial_number_stack)
-
-        self.code_label = QLabel(self.material.code or "")
         self.code_input = QLineEdit(self.material.code or "")
-        self.code_stack = QStackedLayout()
-        self.code_stack.addWidget(self.code_label)
-        self.code_stack.addWidget(self.code_input)
-        code_widget = QWidget()
-        code_widget.setLayout(self.code_stack)
-
-        # Image Field
-        self.image_view = QLabel()
-        self.image_view.setFixedSize(200, 200)
-        self.image_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_view.setStyleSheet("border: 1px solid #ddd; background-color: #f9f9f9;")
         
-        if self.material.image_path:
-            full_path = os.path.join(get_base_path(), self.material.image_path)
-            if os.path.exists(full_path):
-                pixmap = QPixmap(full_path)
-                if not pixmap.isNull():
-                    scaled = pixmap.scaled(
-                        200, 200,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation
-                    )
-                    self.image_view.setPixmap(scaled)
-                else:
-                    self.image_view.setText("Immagine non valida")
-            else:
-                self.image_view.setText("File non trovato")
-        else:
-            self.image_view.setText("Nessuna immagine")
-
+        form_layout.addRow("Denominazione:", self.denomination_input)
+        form_layout.addRow("NDC:", self.ndc_input)
+        form_layout.addRow("Part Number:", self.part_number_input)
+        form_layout.addRow("Numero di Serie:", self.serial_number_input)
+        form_layout.addRow("Codice:", self.code_input)
+        
+        if self.material.material_type == MaterialType.ITEM:
+            self.location_input = QLineEdit("")
+            form_layout.addRow("Posizione:", self.location_input)
+            
         self.image_edit = ImageDropWidget()
         if self.material.image_path:
              full_path = os.path.join(get_base_path(), self.material.image_path)
              if os.path.exists(full_path):
                  self.image_edit.load_image(full_path)
-
-        self.image_stack = QStackedLayout()
-        self.image_stack.addWidget(self.image_view)
-        self.image_stack.addWidget(self.image_edit)
-        image_widget = QWidget()
-        image_widget.setLayout(self.image_stack)
         
-        # Location Field for Items
-        self.location_label = QLabel("")
-        self.location_input = QLineEdit("")
-        self.location_stack = QStackedLayout()
-        self.location_stack.addWidget(self.location_label)
-        self.location_stack.addWidget(self.location_input)
-        location_widget = QWidget()
-        location_widget.setLayout(self.location_stack)
-
-        form_layout.addRow("ID:", id_label)
-        form_layout.addRow("Tipo:", type_label)
-        form_layout.addRow("Denominazione:", denomination_widget)
-        form_layout.addRow("NDC:", ndc_widget)
-        form_layout.addRow("Part Number:", part_number_widget)
-        form_layout.addRow("Numero di Serie:", serial_number_widget)
-        form_layout.addRow("Codice:", code_widget)
-        
-        if self.material.material_type == MaterialType.ITEM:
-            form_layout.addRow("Posizione:", location_widget)
-            
-        form_layout.addRow("Percorso Immagine:", image_widget)
+        form_layout.addRow("Immagine:", self.image_edit)
 
         scroll.setWidget(content)
         layout.addWidget(scroll)
-        self.details_tab.setLayout(layout)
-
-    def enable_edit_mode(self):
-        if self.edit_mode:
-            return
-        self.edit_mode = True
-        self.denomination_stack.setCurrentIndex(1)
-        self.ndc_stack.setCurrentIndex(1)
-        self.part_number_stack.setCurrentIndex(1)
-        self.serial_number_stack.setCurrentIndex(1)
-        self.code_stack.setCurrentIndex(1)
-        self.image_stack.setCurrentIndex(1)
-        if self.material.material_type == MaterialType.ITEM:
-            self.location_stack.setCurrentIndex(1)
-        self.save_button.setEnabled(True)
-        self.edit_button.setEnabled(False)
-        self.delete_button.setEnabled(False)
+        
+        # Buttons for Edit Tab
+        buttons_layout = QHBoxLayout()
+        
+        save_btn = QPushButton("Salva Modifiche")
+        save_btn.clicked.connect(self.save_changes)
+        buttons_layout.addWidget(save_btn)
+        
+        delete_btn = QPushButton("Elimina Oggetto" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
+        delete_btn.setStyleSheet("background-color: #d32f2f; color: white;")
+        delete_btn.clicked.connect(self.delete_material_action)
+        buttons_layout.addWidget(delete_btn)
+        
+        layout.addLayout(buttons_layout)
+        self.edit_tab.setLayout(layout)
 
     @asyncSlot()
     async def delete_material_action(self):
@@ -411,18 +378,9 @@ class MaterialDetailDialog(QDialog):
             
         if self.material.is_efficient:
             self.toggle_efficiency_btn.setText("Segnala come Non Efficiente")
-            # self.toggle_efficiency_btn.setStyleSheet("background-color: #ffcccc;") 
         else:
             self.toggle_efficiency_btn.setText("Segnala come Efficiente")
-            # self.toggle_efficiency_btn.setStyleSheet("background-color: #ccffcc;") 
             
-        if self.is_withdrawn:
-            self.withdraw_btn.setEnabled(False)
-            self.withdraw_btn.setText("Oggetto Prelevato")
-        else:
-            self.withdraw_btn.setEnabled(True)
-            self.withdraw_btn.setText("Preleva Oggetto")
-
     @asyncSlot()
     async def toggle_efficiency(self):
         try:
@@ -512,19 +470,32 @@ class MaterialDetailDialog(QDialog):
         try:
             index = self.new_withdrawal_user_combo.currentIndex()
             if index < 0:
-                QMessageBox.warning(
-                    self, "Validation Error", "Please select a user."
-                )
+                QMessageBox.warning(self, "Errore", "Seleziona un utente.")
                 return
-            user_id = self.new_withdrawal_user_combo.currentData()
+            
+            user_id = self.new_withdrawal_user_combo.itemData(index)
+            if not user_id:
+                QMessageBox.warning(self, "Errore", "Utente non valido.")
+                return
 
             amount_text = self.new_withdrawal_amount_input.text().strip()
             if not amount_text.isdigit() or int(amount_text) <= 0:
-                QMessageBox.warning(
-                    self, "Validation Error", "Amount must be a positive integer."
-                )
+                QMessageBox.warning(self, "Errore", "La quantità deve essere un numero intero positivo.")
                 return
+            
             amount = int(amount_text)
+            
+            # Check availability if it's a consumable
+            if self.material.material_type == MaterialType.CONSUMABLE:
+                 batches = await get_material_batches(self.material.id)
+                 total_stock = sum(b.amount for b in batches)
+                 withdrawals = await get_material_withdrawals(self.material.id)
+                 total_withdrawn = sum(w[0].amount for w in withdrawals)
+                 available = total_stock - total_withdrawn
+                 
+                 if amount > available:
+                     QMessageBox.warning(self, "Attenzione", f"Quantità non disponibile. Disponibile: {available}")
+                     return
 
             notes = self.new_withdrawal_notes_input.text().strip() or None
 
@@ -532,15 +503,27 @@ class MaterialDetailDialog(QDialog):
                 user_id=user_id,
                 material_id=self.material.id,
                 amount=amount,
-                notes=notes,
+                notes=notes
             )
+
+            # Refresh withdrawals
             await self.load_related_data()
+            
+            # Reset form
             self.new_withdrawal_amount_input.clear()
             self.new_withdrawal_notes_input.clear()
+            self.new_withdrawal_user_combo.setCurrentIndex(-1)
+            self.user_search_input.clear()
+
+            QMessageBox.information(self, "Successo", "Prelievo aggiunto con successo.")
+            
+            # Refresh parent list if needed (e.g. to update available quantity)
+            parent = self.parent()
+            if hasattr(parent, "refresh_materials"):
+                await parent.refresh_materials()
+
         except Exception as e:
-            QMessageBox.critical(
-                self, "Error", f"Failed to create withdrawal: {e}"
-            )
+            QMessageBox.critical(self, "Errore", f"Impossibile aggiungere il prelievo: {e}")
         finally:
             self.add_withdrawal_button.setEnabled(True)
 
@@ -583,12 +566,9 @@ class MaterialDetailDialog(QDialog):
 
     @asyncSlot()
     async def save_changes(self, *args):
-        self.buttons.setEnabled(False)
-
         denomination = self.denomination_input.text().strip()
         if not denomination:
             QMessageBox.warning(self, "Validation Error", "Denomination is required.")
-            self.buttons.setEnabled(True)
             return
 
         try:
@@ -611,10 +591,6 @@ class MaterialDetailDialog(QDialog):
             self.material.code = updated.code
             self.material.image_path = updated.image_path
             
-            if self.material.material_type == MaterialType.ITEM:
-                new_loc = self.location_input.text().strip()
-                self.location_label.setText(new_loc)
-            
             parent = self.parent()
             if hasattr(parent, "refresh_materials"):
                 parent.refresh_materials()
@@ -622,7 +598,6 @@ class MaterialDetailDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to update material: {str(e)}")
-            self.buttons.setEnabled(True)
 
 class MaterialItemWidget(QWidget):
     def __init__(self, material: Material, available_qty: int | None = None, status_text: str | None = None):
