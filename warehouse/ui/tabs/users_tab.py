@@ -203,7 +203,7 @@ class UserDetailDialog(QDialog):
                 
                 parent = self.parent()
                 if hasattr(parent, "refresh_users"):
-                    parent.refresh_users()
+                    await parent.refresh_users()
                     
                 self.accept() # Close dialog with Accepted result
                 
@@ -364,7 +364,7 @@ class UserDetailDialog(QDialog):
             self.user.notes = updated.notes
             parent = self.parent()
             if hasattr(parent, "refresh_users"):
-                parent.refresh_users()
+                await parent.refresh_users()
             QMessageBox.information(self, "Success", "User updated successfully.")
             self.accept()
         except Exception as e:
@@ -486,6 +486,7 @@ class UsersTab(QWidget):
         if user is None:
             return
         dialog = UserDetailDialog(user, self)
+        dialog.finished.connect(self.refresh_users)
         dialog.open()
 
     def on_search_changed(self, text):

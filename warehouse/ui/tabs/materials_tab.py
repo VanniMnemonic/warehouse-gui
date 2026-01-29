@@ -241,7 +241,7 @@ class MaterialDetailDialog(QDialog):
                 
                 parent = self.parent()
                 if hasattr(parent, "refresh_materials"):
-                    parent.refresh_materials()
+                    await parent.refresh_materials()
                     
                 self.accept()
                 
@@ -637,7 +637,7 @@ class MaterialDetailDialog(QDialog):
             
             parent = self.parent()
             if hasattr(parent, "refresh_materials"):
-                parent.refresh_materials()
+                await parent.refresh_materials()
             QMessageBox.information(self, "Success", "Material updated successfully.")
             self.accept()
         except Exception as e:
