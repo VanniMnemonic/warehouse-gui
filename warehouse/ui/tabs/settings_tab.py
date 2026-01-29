@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 from warehouse.database import engine, init_db, DATABASE_URL
 from warehouse.models import SQLModel
+from warehouse.utils import get_base_path
 from sqlalchemy import text
 
 class SettingsTab(QWidget):
@@ -36,10 +37,12 @@ class SettingsTab(QWidget):
         self.theme_combo.addItems(styles)
         self.theme_combo.addItem("Fusion Dark")
         
-        # Set current selection (default is Fusion)
-        index = self.theme_combo.findText("Fusion")
+        # Set current selection (default is Fusion Dark)
+        index = self.theme_combo.findText("Fusion Dark")
         if index >= 0:
             self.theme_combo.setCurrentIndex(index)
+            # Apply the theme immediately if it's the default
+            self.change_theme("Fusion Dark")
             
         self.theme_combo.currentTextChanged.connect(self.change_theme)
         theme_layout.addWidget(self.theme_combo)
