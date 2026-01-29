@@ -353,8 +353,18 @@ class MaterialDetailDialog(QDialog):
         self.user_search_input = QLineEdit()
         self.user_search_input.setPlaceholderText("Cerca utente in tutti i campi...")
         self.user_search_input.textChanged.connect(self.new_withdrawal_user_combo.setEditText)
+        self.user_search_input.textChanged.connect(self.reset_search_check)
+        self.user_search_input.returnPressed.connect(self.on_user_search_return)
 
-        form_layout.addRow("Cerca:", self.user_search_input)
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.user_search_input)
+        
+        self.search_check_label = QLabel("✅")
+        self.search_check_label.setStyleSheet("color: green; font-weight: bold; font-size: 16px;")
+        self.search_check_label.hide()
+        search_layout.addWidget(self.search_check_label)
+
+        form_layout.addRow("Cerca:", search_layout)
         self.new_withdrawal_amount_input = QLineEdit()
         self.new_withdrawal_notes_input = QLineEdit()
 
@@ -463,6 +473,24 @@ class MaterialDetailDialog(QDialog):
                 self.new_withdrawal_user_combo.addItem(label, user.id, barcode=user.code, search_text=search_text)
         except Exception as e:
             QMessageBox.warning(self, "Errore Caricamento Dati", f"Impossibile caricare gli utenti: {e}")
+
+    def reset_search_check(self):
+        self.search_check_label.hide()
+
+    def on_user_search_return(self):
+        # Access the proxy model from the custom combo box
+        proxy = self.new_withdrawal_user_combo.proxy_model
+        if proxy.rowCount() == 1:
+            # Get the index in the proxy model (row 0, column 0)
+            proxy_index = proxy.index(0, 0)
+            # Map it back to the source model index
+            source_index = proxy.mapToSource(proxy_index)
+            # Set the combo box selection
+            self.new_withdrawal_user_combo.setCurrentIndex(source_index.row())
+            # Show success indicator
+            self.search_check_label.show()
+            # Optional: move focus to next field
+            self.new_withdrawal_amount_input.setFocus()
 
     @asyncSlot()
     async def add_material_withdrawal(self, *args):
