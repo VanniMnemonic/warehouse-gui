@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QApplication, QStyleFactory
 )
 from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSettings
 from qasync import asyncSlot
 
 from warehouse.models import MaterialType
@@ -13,6 +13,7 @@ from warehouse.ui.tabs.materials_tab import MaterialsTab
 from warehouse.ui.tabs.withdrawals_tab import WithdrawalsTab
 from warehouse.ui.tabs.dashboard_tab import DashboardTab
 from warehouse.ui.tabs.settings_tab import SettingsTab
+from warehouse.ui.theme import apply_theme
 
 class MainWindow(QMainWindow):
     def __init__(self, stop_event=None):
@@ -21,8 +22,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Gestore Magazzino")
         self.resize(1200, 800)
         
-        # Set default theme
-        QApplication.setStyle("Fusion")
+        # Load and apply saved theme
+        settings = QSettings("WarehouseApp", "WarehouseGUI")
+        saved_theme = settings.value("theme", "Fusion Dark")
+        apply_theme(saved_theme)
         
         # Apply global stylesheet for buttons to make them taller
         QApplication.instance().setStyleSheet("""

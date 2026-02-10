@@ -1,4 +1,5 @@
 from sqlmodel import select, col, func
+from datetime import date, timedelta
 from warehouse.database import get_session
 from warehouse.models import Material, MaterialType, Batch, Withdrawal, User
 
@@ -78,16 +79,22 @@ async def create_material(
         return material
 
 
-async def get_expiring_batches(limit: int = 50):
+async def get_expiring_batches(limit: int = 50, days_threshold: int = 30):
     """
-    Returns active batches (amount > 0) sorted by expiration date (ascending).
+    Returns active batches (amount > 0) of CONSUMABLES sorted by expiration date (ascending).
+    Only includes batches expiring within 'days_threshold' days (or already expired).
     Joins with Material to provide context.
     """
+    today = date.today()
+    limit_date = today + timedelta(days=days_threshold)
+    
     async with get_session() as session:
         statement = (
             select(Batch, Material)
             .join(Material)
             .where(Batch.amount > 0)
+            .where(Material.material_type == MaterialType.CONSUMABLE)
+            .where(Batch.expiration <= limit_date)
             .order_by(Batch.expiration)
             .limit(limit)
         )
