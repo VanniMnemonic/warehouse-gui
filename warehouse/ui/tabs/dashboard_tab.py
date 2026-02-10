@@ -230,7 +230,7 @@ class DashboardTab(QWidget):
         expiring_group.setLayout(expiring_layout)
         
         # Section 2: Inefficient Items
-        inefficient_group = QGroupBox("Oggetti Non Efficienti (Danneggiati)")
+        inefficient_group = QGroupBox("Attrezzature Non Efficienti (Danneggiate)")
         inefficient_layout = QVBoxLayout()
         self.inefficient_list = QListWidget()
         self.inefficient_list.setSpacing(2)

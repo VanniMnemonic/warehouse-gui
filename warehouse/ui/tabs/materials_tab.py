@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
     QLabel, QHBoxLayout, QPushButton, QMessageBox, QDialog, QFormLayout,
-    QDialogButtonBox, QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
-    QStackedLayout, QComboBox, QDateEdit, QGridLayout, QScrollArea, QGroupBox
+    QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
+    QDateEdit, QGridLayout, QScrollArea, QGroupBox
 )
 from PyQt6.QtCore import Qt, QDate, QTimer
 from PyQt6.QtGui import QPixmap, QImage
@@ -10,7 +10,6 @@ from qasync import asyncSlot
 import asyncio
 import os
 import uuid
-import shutil
 from warehouse.utils import get_base_path
 
 from warehouse.controllers_material import (
@@ -29,7 +28,7 @@ class MaterialDetailDialog(QDialog):
         self.material = material
         self.users_for_withdrawal = []
         if material.material_type == MaterialType.ITEM:
-            title = "Dettagli Oggetto"
+            title = "Dettagli Attrezzatura"
         else:
             title = "Dettagli Consumabile"
         self.setWindowTitle(title)
@@ -200,7 +199,7 @@ class MaterialDetailDialog(QDialog):
         save_btn.clicked.connect(self.save_changes)
         buttons_layout.addWidget(save_btn)
         
-        delete_btn = QPushButton("Elimina Oggetto" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
+        delete_btn = QPushButton("Elimina Attrezzatura" if self.material.material_type == MaterialType.ITEM else "Elimina Consumabile")
         delete_btn.setStyleSheet("background-color: #d32f2f; color: white;")
         delete_btn.clicked.connect(self.delete_material_action)
         buttons_layout.addWidget(delete_btn)
@@ -213,7 +212,7 @@ class MaterialDetailDialog(QDialog):
         try:
             batch_count, withdrawal_count = await get_material_dependencies(self.material.id)
             
-            item_type_str = "questo oggetto" if self.material.material_type == MaterialType.ITEM else "questo consumabile"
+            item_type_str = "questa attrezzatura" if self.material.material_type == MaterialType.ITEM else "questo consumabile"
             msg = f"Sei sicuro di voler eliminare {item_type_str}: {self.material.denomination}?"
             
             dependencies_msg = []
@@ -410,7 +409,7 @@ class MaterialDetailDialog(QDialog):
             if hasattr(parent, "refresh_materials"):
                 await parent.refresh_materials()
                 
-            QMessageBox.information(self, "Successo", f"Oggetto segnato come {'Efficiente' if new_status else 'Non Efficiente'}.")
+            QMessageBox.information(self, "Successo", f"Attrezzatura segnata come {'Efficiente' if new_status else 'Non Efficiente'}.")
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile aggiornare lo stato: {e}")
 
@@ -762,7 +761,7 @@ class MaterialsTab(QWidget):
         QTimer.singleShot(0, self.refresh_materials)
 
     def setup_ui(self):
-        type_str = "Oggetti" if self.material_type == MaterialType.ITEM else "Consumabili"
+        type_str = "Attrezzature" if self.material_type == MaterialType.ITEM else "Consumabili"
         title_str = "Gestione " + type_str
         
         # Header
@@ -803,7 +802,7 @@ class MaterialsTab(QWidget):
         self.refresh_btn.clicked.connect(self.refresh_materials)
         btn_layout.addWidget(self.refresh_btn)
         
-        add_btn_text = "Aggiungi Nuovo Oggetto" if self.material_type == MaterialType.ITEM else "Aggiungi Nuovo Consumabile"
+        add_btn_text = "Aggiungi Nuova Attrezzatura" if self.material_type == MaterialType.ITEM else "Aggiungi Nuovo Consumabile"
         self.add_btn = QPushButton(add_btn_text)
         self.add_btn.clicked.connect(self.open_add_material_dialog)
         btn_layout.addWidget(self.add_btn)

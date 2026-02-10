@@ -136,10 +136,10 @@ class WithdrawalItemWidget(QWidget):
 class ReturnDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Restituisci Oggetto")
+        self.setWindowTitle("Restituisci Attrezzatura")
         layout = QVBoxLayout()
         
-        layout.addWidget(QLabel("L'oggetto è efficiente (funzionante) alla restituzione?"))
+        layout.addWidget(QLabel("L'attrezzatura è efficiente (funzionante) alla restituzione?"))
         
         self.efficient_group = QButtonGroup(self)
         self.yes_radio = QRadioButton("Sì, efficiente")
@@ -238,7 +238,7 @@ class WithdrawalsTab(QWidget):
             efficient = dialog.is_efficient()
             try:
                 await return_withdrawal_item(withdrawal_id, efficient)
-                QMessageBox.information(self, "Successo", "Oggetto restituito con successo.")
+                QMessageBox.information(self, "Successo", "Attrezzatura restituita con successo.")
                 await self.refresh_withdrawals()
             except Exception as e:
-                QMessageBox.critical(self, "Errore", f"Impossibile restituire l'oggetto: {e}")
+                QMessageBox.critical(self, "Errore", f"Impossibile restituire l'attrezzatura: {e}")

@@ -80,7 +80,7 @@ class MaterialFormDialog(QDialog):
     def __init__(self, material_type: MaterialType, parent=None):
         super().__init__(parent)
         self.material_type = material_type
-        type_str = "Oggetto" if material_type == MaterialType.ITEM else "Consumabile"
+        type_str = "Attrezzatura" if material_type == MaterialType.ITEM else "Consumabile"
         self.setWindowTitle(f"Aggiungi Nuovo {type_str}")
         self.resize(600, 600)
         

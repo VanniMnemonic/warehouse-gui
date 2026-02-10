@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         
         # 2. Items Tab
         self.items_tab = MaterialsTab(MaterialType.ITEM)
-        self.tabs.addTab(self.items_tab, "Oggetti")
+        self.tabs.addTab(self.items_tab, "Attrezzature")
         
         # 3. Consumables Tab
         self.consumables_tab = MaterialsTab(MaterialType.CONSUMABLE)

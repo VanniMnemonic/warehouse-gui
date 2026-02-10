@@ -36,7 +36,7 @@ async def seed():
         luigi = (await session.execute(select(User).where(User.custom_id == "LV1"))).scalar_one()
         peach = (await session.execute(select(User).where(User.custom_id == "PT1"))).scalar_one()
 
-        print("Creazione Materiali (Oggetti)...")
+        print("Creazione Materiali (Attrezzature)...")
         items_data = [
             # Efficient Items
             {"denomination": "Trapano Avvitatore", "part_number": "TR-2000", "serial_number": "SN-001", "is_efficient": True},

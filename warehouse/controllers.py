@@ -121,7 +121,7 @@ async def create_withdrawal(
             )
             result = await session.execute(active_withdrawal_stmt)
             if result.scalars().first():
-                raise ValueError(f"L'oggetto '{material.denomination}' è già stato prelevato e non ancora restituito.")
+                raise ValueError(f"L'attrezzatura '{material.denomination}' è già stata prelevata e non ancora restituita.")
 
         if material.material_type == MaterialType.CONSUMABLE:
             # Get batches sorted by expiration (FEFO)

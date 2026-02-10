@@ -272,7 +272,7 @@ class UserDetailDialog(QDialog):
             for mat in materials:
                 label = mat.denomination
                 if mat.material_type == MaterialType.ITEM:
-                    label += " [Oggetto]"
+                    label += " [Attrezzatura]"
                 else:
                     label += " [Consumabile]"
                 
