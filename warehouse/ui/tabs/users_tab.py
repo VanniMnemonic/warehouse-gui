@@ -21,6 +21,7 @@ from warehouse.controllers_material import get_materials
 from warehouse.models import User, MaterialType
 from warehouse.ui.user_form import UserFormDialog
 from warehouse.ui.components import BarcodeSearchComboBox
+from warehouse.ui.colors import AppColors
 
 
 class UserDetailDialog(QDialog):
@@ -56,7 +57,7 @@ class UserDetailDialog(QDialog):
         main_layout.addWidget(self.edit_button)
 
         self.delete_button = QPushButton("Elimina Utente")
-        self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
+        self.delete_button.setStyleSheet(AppColors.danger_button_style())
         self.delete_button.clicked.connect(self.delete_user_action)
         main_layout.addWidget(self.delete_button)
 

@@ -15,6 +15,7 @@ from warehouse.database import engine, init_db, DATABASE_URL
 from warehouse.models import SQLModel
 from warehouse.utils import get_base_path
 from warehouse.ui.theme import apply_theme
+from warehouse.ui.colors import AppColors
 from sqlalchemy import text
 
 class SettingsTab(QWidget):
@@ -79,7 +80,7 @@ class SettingsTab(QWidget):
         
         # Reset
         btn_reset = QPushButton("Reset Database")
-        btn_reset.setStyleSheet("background-color: #ffcccc; color: red; font-weight: bold;")
+        btn_reset.setStyleSheet(AppColors.danger_button_style())
         btn_reset.clicked.connect(self.reset_db)
         db_layout.addWidget(btn_reset)
         

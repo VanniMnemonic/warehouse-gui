@@ -8,6 +8,7 @@ from qasync import asyncSlot
 from datetime import date, timedelta
 import os
 from warehouse.utils import get_base_path
+from warehouse.ui.colors import AppColors
 from warehouse.controllers_material import (
     get_expiring_batches, 
     get_inefficient_materials, 
@@ -66,7 +67,7 @@ class LowStockItemWidget(QWidget):
         # Stock Info
         stock_text = f"Disponibile: {self.current_stock} / Min: {self.material.min_stock}"
         lbl_stock = QLabel(stock_text)
-        lbl_stock.setStyleSheet("color: #d32f2f; font-weight: bold;")
+        lbl_stock.setStyleSheet(AppColors.danger_style())
         details_layout.addWidget(lbl_stock, 1, 0, 1, 2)
         
         layout.addLayout(details_layout)
@@ -124,9 +125,9 @@ class ExpiringBatchItemWidget(QWidget):
         exp_str = f"Scadenza: {self.batch.expiration} ({days_left} giorni)"
         lbl_exp = QLabel(exp_str)
         if days_left < 0:
-            lbl_exp.setStyleSheet("color: red; font-weight: bold;")
+            lbl_exp.setStyleSheet(AppColors.danger_style())
         elif days_left < 30:
-            lbl_exp.setStyleSheet("color: orange; font-weight: bold;")
+            lbl_exp.setStyleSheet(AppColors.warning_style())
         details_layout.addWidget(lbl_exp, 1, 0)
         
         # Amount
@@ -135,7 +136,7 @@ class ExpiringBatchItemWidget(QWidget):
         # Available Quantity
         if self.available_qty is not None:
              qty_label = QLabel(f"Totale Disponibile: {self.available_qty}")
-             qty_label.setStyleSheet("color: #00796b; font-weight: bold;")
+             qty_label.setStyleSheet(f"color: {AppColors.TEAL}; font-weight: bold;")
              details_layout.addWidget(qty_label, 2, 1)
 
         # Location
@@ -188,7 +189,7 @@ class InefficientMaterialItemWidget(QWidget):
         
         # Name
         lbl_name = QLabel(f"{self.material.denomination} (ID: {self.material.id})")
-        lbl_name.setStyleSheet("font-weight: bold; font-size: 14px; color: #d32f2f;") # Red title for inefficient
+        lbl_name.setStyleSheet(f"font-weight: bold; font-size: 14px; color: {AppColors.DANGER};") # Red title for inefficient
         details_layout.addWidget(lbl_name, 0, 0, 1, 2)
         
         # Codes
@@ -202,7 +203,7 @@ class InefficientMaterialItemWidget(QWidget):
         
         if self.withdrawal_info:
             w_label = QLabel(self.withdrawal_info)
-            w_label.setStyleSheet("color: #d32f2f; font-weight: bold;")
+            w_label.setStyleSheet(AppColors.danger_style())
             details_layout.addWidget(w_label, 2, 0, 1, 2)
 
         layout.addLayout(details_layout)
