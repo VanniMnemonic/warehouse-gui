@@ -9,13 +9,13 @@ async def get_materials(material_type: MaterialType):
         result = await session.execute(statement)
         return list(result.scalars().all())
 
-async def get_consumable_stocks() -> dict[int, int]:
-    """Returns a dictionary of material_id -> total_stock for consumables."""
+async def get_material_stocks() -> dict[int, int]:
+    """Returns a dictionary of material_id -> total_stock for ALL materials (Consumables and Items)."""
     async with get_session() as session:
         statement = (
             select(Batch.material_id, func.sum(Batch.amount))
             .join(Material)
-            .where(Material.material_type == MaterialType.CONSUMABLE)
+            # Removed filter: .where(Material.material_type == MaterialType.CONSUMABLE)
             .group_by(Batch.material_id)
         )
         result = await session.execute(statement)
@@ -65,16 +65,25 @@ async def create_material(
         await session.commit()
         await session.refresh(material)
         
-        # If ITEM, create initial batch with location
-        if material_type == MaterialType.ITEM:
-             batch = Batch(
-                material_id=material.id,
-                expiration=date(9999, 12, 31),
-                amount=1,
-                location=location
-            )
-             session.add(batch)
-             await session.commit()
+        # If ITEM, create initial batch with location ONLY IF batch data not provided manually in form
+        # (The form now exposes batch fields for ITEM too, so if the user filled them, `create_batch` logic in form handler is used)
+        # Wait, create_material is called by the form handler.
+        # The form handler (MaterialForm.accept_data) calls create_material AND THEN calls create_batch if batch fields are filled.
+        # So we should REMOVE the automatic 1-item batch creation here to avoid duplicates if the user adds a batch manually.
+        # AND if the user DOESN'T add a batch manually, we might want to default to 1?
+        # But if we support Batches properly, we should let the user decide.
+        # If I remove this block, and the user leaves batch empty, Stock will be 0.
+        # This is consistent with Consumables.
+        
+        # if material_type == MaterialType.ITEM:
+        #      batch = Batch(
+        #         material_id=material.id,
+        #         expiration=date(9999, 12, 31),
+        #         amount=1,
+        #         location=location
+        #     )
+        #      session.add(batch)
+        #      await session.commit()
         
         return material
 
@@ -117,7 +126,7 @@ async def get_inefficient_materials():
 
 async def get_low_stock_materials():
     """
-    Returns a list of (Material, current_stock) for consumables where current_stock <= min_stock.
+    Returns a list of (Material, current_stock) for ALL materials where current_stock <= min_stock.
     Only considers materials with min_stock > 0.
     """
     async with get_session() as session:
@@ -134,7 +143,7 @@ async def get_low_stock_materials():
             select(Material, func.coalesce(stock_subquery.c.total_stock, 0).label("stock"))
             .outerjoin(stock_subquery, Material.id == stock_subquery.c.material_id)
             .where(
-                Material.material_type == MaterialType.CONSUMABLE,
+                # Removed filter: Material.material_type == MaterialType.CONSUMABLE,
                 Material.min_stock > 0,
                 func.coalesce(stock_subquery.c.total_stock, 0) <= Material.min_stock
             )

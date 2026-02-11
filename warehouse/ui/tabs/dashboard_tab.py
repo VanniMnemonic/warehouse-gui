@@ -12,7 +12,7 @@ from warehouse.ui.colors import AppColors
 from warehouse.controllers_material import (
     get_expiring_batches, 
     get_inefficient_materials, 
-    get_consumable_stocks,
+    get_material_stocks,
     get_low_stock_materials
 )
 from warehouse.controllers import get_active_item_withdrawals
@@ -238,8 +238,8 @@ class DashboardTab(QWidget):
         inefficient_layout.addWidget(self.inefficient_list)
         inefficient_group.setLayout(inefficient_layout)
         
-        # Section 3: Low Stock Consumables
-        low_stock_group = QGroupBox("Consumabili Sotto Scorta")
+        # Section 3: Low Stock Materials (Consumables and Items)
+        low_stock_group = QGroupBox("Materiali Sotto Scorta")
         low_stock_layout = QVBoxLayout()
         self.low_stock_list = QListWidget()
         self.low_stock_list.setSpacing(2)
@@ -256,7 +256,7 @@ class DashboardTab(QWidget):
     async def refresh_data(self, *args):
         try:
             # Load Data
-            consumable_stocks = await get_consumable_stocks()
+            material_stocks = await get_material_stocks()
             active_withdrawals = await get_active_item_withdrawals()
             low_stock_data = await get_low_stock_materials()
             
@@ -273,7 +273,7 @@ class DashboardTab(QWidget):
             batches_data = await get_expiring_batches(limit=50)
             for batch, material in batches_data:
                 item = QListWidgetItem(self.expiring_list)
-                available = consumable_stocks.get(material.id, 0)
+                available = material_stocks.get(material.id, 0)
                 widget = ExpiringBatchItemWidget(batch, material, available_qty=available)
                 item.setSizeHint(widget.sizeHint())
                 self.expiring_list.setItemWidget(item, widget)
@@ -286,8 +286,9 @@ class DashboardTab(QWidget):
                 
                 withdrawal_info = None
                 if material.id in active_withdrawals:
-                    withdrawal, user = active_withdrawals[material.id]
-                    withdrawal_info = f"PRELEVATO da {user.first_name} {user.last_name}"
+                    withdrawals_list = active_withdrawals[material.id]
+                    users = [f"{u.first_name} {u.last_name}" for _, u in withdrawals_list]
+                    withdrawal_info = f"PRELEVATO da {', '.join(users)}"
                 
                 widget = InefficientMaterialItemWidget(material, withdrawal_info=withdrawal_info)
                 item.setSizeHint(widget.sizeHint())

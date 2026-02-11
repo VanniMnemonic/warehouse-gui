@@ -1,4 +1,4 @@
-from sqlmodel import select, col
+from sqlmodel import select, col, func
 from warehouse.database import get_session
 from warehouse.models import User, Withdrawal, Material, Batch, MaterialType
 from rapidfuzz import process, fuzz, utils
@@ -114,14 +114,34 @@ async def create_withdrawal(
             raise ValueError("Material not found")
 
         if material.material_type == MaterialType.ITEM:
-            # Check if item is already withdrawn (active withdrawal exists)
-            active_withdrawal_stmt = select(Withdrawal).where(
+            # New logic for Equipment/Items:
+            # Allow multiple pieces (Stock Management) similar to Consumables but tracked as "Durable".
+            # Calculate Available Stock = Total Owned (Sum of Batches) - Active Withdrawals.
+            
+            # 1. Get Total Owned Stock (Sum of Batches)
+            stock_stmt = select(func.sum(Batch.amount)).where(Batch.material_id == material_id)
+            stock_res = await session.execute(stock_stmt)
+            total_owned = stock_res.scalar() or 0
+            
+            if total_owned == 0:
+                raise ValueError(f"L'attrezzatura '{material.denomination}' non è disponibile in magazzino (Stock: 0).")
+
+            # 2. Get Count of Active Withdrawals
+            active_stmt = select(func.sum(Withdrawal.amount)).where(
                 Withdrawal.material_id == material_id,
                 Withdrawal.return_date == None
             )
-            result = await session.execute(active_withdrawal_stmt)
-            if result.scalars().first():
-                raise ValueError(f"L'attrezzatura '{material.denomination}' è già stata prelevata e non ancora restituita.")
+            active_res = await session.execute(active_stmt)
+            active_count = active_res.scalar() or 0
+            
+            # 3. Calculate Available
+            available = total_owned - active_count
+            
+            if amount > available:
+                raise ValueError(f"Quantità richiesta non disponibile. Disponibili: {available}, Richiesti: {amount}")
+
+            # For Items, we do NOT decrement Batch.amount because they are returned.
+            # Stock is managed as "Total Owned".
 
         if material.material_type == MaterialType.CONSUMABLE:
             # Get batches sorted by expiration (FEFO)
@@ -186,7 +206,7 @@ async def return_withdrawal_item(withdrawal_id: int, efficient: bool) -> Withdra
         await session.refresh(withdrawal)
         return withdrawal
 
-async def get_active_item_withdrawals() -> dict[int, tuple[Withdrawal, User]]:
+async def get_active_item_withdrawals() -> dict[int, list[tuple[Withdrawal, User]]]:
     async with get_session() as session:
         # Get withdrawals that haven't been returned yet, with User info
         statement = select(Withdrawal, User).join(User).where(
@@ -194,4 +214,11 @@ async def get_active_item_withdrawals() -> dict[int, tuple[Withdrawal, User]]:
         )
         result = await session.execute(statement)
         rows = result.all()
-        return {row.Withdrawal.material_id: (row.Withdrawal, row.User) for row in rows}
+        
+        active_withdrawals = {}
+        for row in rows:
+            if row.Withdrawal.material_id not in active_withdrawals:
+                active_withdrawals[row.Withdrawal.material_id] = []
+            active_withdrawals[row.Withdrawal.material_id].append((row.Withdrawal, row.User))
+            
+        return active_withdrawals

@@ -39,14 +39,14 @@ async def seed():
         print("Creazione Materiali (Attrezzature)...")
         items_data = [
             # Efficient Items
-            {"denomination": "Trapano Avvitatore", "part_number": "TR-2000", "serial_number": "SN-001", "is_efficient": True},
-            {"denomination": "Saldatrice", "part_number": "WELD-X", "serial_number": "SN-002", "is_efficient": True},
-            {"denomination": "Multimetro", "part_number": "FLUKE-87", "serial_number": "SN-003", "is_efficient": True},
-            {"denomination": "Oscilloscopio", "part_number": "TEK-100", "serial_number": "SN-004", "is_efficient": True},
+            {"denomination": "Trapano Avvitatore", "part_number": "TR-2000", "serial_number": "SN-001", "is_efficient": True, "min_stock": 2},
+            {"denomination": "Saldatrice", "part_number": "WELD-X", "serial_number": "SN-002", "is_efficient": True, "min_stock": 1},
+            {"denomination": "Multimetro", "part_number": "FLUKE-87", "serial_number": "SN-003", "is_efficient": True, "min_stock": 5}, # Low Stock!
+            {"denomination": "Oscilloscopio", "part_number": "TEK-100", "serial_number": "SN-004", "is_efficient": True, "min_stock": 1},
             
             # Inefficient/Damaged Items
-            {"denomination": "Martello Pneumatico", "part_number": "HAMMER-99", "serial_number": "SN-DAMAGED", "is_efficient": False},
-            {"denomination": "Generatore di Funzioni", "part_number": "GEN-50", "serial_number": "SN-BROKEN", "is_efficient": False},
+            {"denomination": "Martello Pneumatico", "part_number": "HAMMER-99", "serial_number": "SN-DAMAGED", "is_efficient": False, "min_stock": 0},
+            {"denomination": "Generatore di Funzioni", "part_number": "GEN-50", "serial_number": "SN-BROKEN", "is_efficient": False, "min_stock": 0},
         ]
         
         items = []
@@ -67,9 +67,9 @@ async def seed():
 
         print("Creazione Materiali (Consumabili)...")
         consumables_data = [
-            {"denomination": "Viti M4x20", "part_number": "SCREW-M4", "is_efficient": True},
-            {"denomination": "Nastro Isolante", "part_number": "TAPE-BLK", "is_efficient": True},
-            {"denomination": "Guanti in Lattice", "part_number": "GLOVE-L", "is_efficient": True},
+            {"denomination": "Viti M4x20", "part_number": "SCREW-M4", "is_efficient": True, "min_stock": 500}, # Low Stock!
+            {"denomination": "Nastro Isolante", "part_number": "TAPE-BLK", "is_efficient": True, "min_stock": 10},
+            {"denomination": "Guanti in Lattice", "part_number": "GLOVE-L", "is_efficient": True, "min_stock": 100},
         ]
         
         consumables = []
@@ -88,11 +88,13 @@ async def seed():
 
         print("Creazione Lotti...")
         today = date.today()
+        
+        # Batches for Consumables
         batches = [
             # Viti: Expired, Expiring Soon, Valid
             Batch(material_id=viti.id, expiration=today - timedelta(days=40), amount=100, location="Scaffale A1"),
             Batch(material_id=viti.id, expiration=today + timedelta(days=5), amount=200, location="Scaffale A2"),
-            Batch(material_id=viti.id, expiration=today + timedelta(days=365), amount=1000, location="Scaffale A3"),
+            Batch(material_id=viti.id, expiration=today + timedelta(days=365), amount=100, location="Scaffale A3"), # Total 400 < 500 (Low Stock)
             
             # Nastro: Valid
             Batch(material_id=nastro.id, expiration=today + timedelta(days=700), amount=50, location="Cassetto B1"),
@@ -100,6 +102,27 @@ async def seed():
             # Guanti: Expired
             Batch(material_id=guanti.id, expiration=today - timedelta(days=1), amount=500, location="Magazzino C"),
         ]
+        
+        # Batches for Items (Equipment) - NEW
+        # Default expiration for items: 2999-12-31
+        far_future = date(2999, 12, 31)
+        
+        item_batches = [
+            # Trapano: 3 units
+            Batch(material_id=trapano.id, expiration=far_future, amount=3, location="Armadio 1"),
+            # Saldatrice: 1 unit
+            Batch(material_id=saldatrice.id, expiration=far_future, amount=1, location="Armadio 2"),
+            # Multimetro: 2 units (Low Stock, min is 5)
+            Batch(material_id=multimetro.id, expiration=far_future, amount=2, location="Armadio 1"),
+            # Oscilloscopio: 1 unit
+            Batch(material_id=oscilloscopio.id, expiration=far_future, amount=1, location="Armadio 3"),
+            # Martello: 1 unit
+            Batch(material_id=martello.id, expiration=far_future, amount=1, location="Riparazioni"),
+            # Generatore: 1 unit
+            Batch(material_id=generatore.id, expiration=far_future, amount=1, location="Riparazioni"),
+        ]
+        
+        batches.extend(item_batches)
         
         for b in batches:
             # Simple check to avoid massive duplication, though batches are unique entities usually

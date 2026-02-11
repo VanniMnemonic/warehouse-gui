@@ -118,28 +118,35 @@ class MaterialFormDialog(QDialog):
         
         self.layout.addLayout(self.form_layout)
         
-        # Initial Batch for Consumables
-        if self.material_type == MaterialType.CONSUMABLE:
-            self.initial_batch_group = QGroupBox("Lotto Iniziale (Opzionale)")
-            batch_layout = QFormLayout()
-            
-            self.expiration_input = QDateEdit()
+        # Initial Batch for both Consumables and Items
+        # (Now that Items also support batches/stock)
+        self.initial_batch_group = QGroupBox("Lotto Iniziale (Opzionale)")
+        batch_layout = QFormLayout()
+        
+        self.expiration_input = QDateEdit()
+        # Default expiration:
+        # Consumable: Today
+        # Item: Far future (effectively no expiration)
+        if self.material_type == MaterialType.ITEM:
+            self.expiration_input.setDate(QDate(2999, 12, 31))
+        else:
             self.expiration_input.setDate(QDate.currentDate())
-            self.expiration_input.setCalendarPopup(True)
-            self.expiration_input.setDisplayFormat("yyyy-MM-dd")
             
-            self.amount_input = QLineEdit()
-            self.amount_input.setPlaceholderText("Quantità")
-            
-            self.batch_location_input = QLineEdit()
-            self.batch_location_input.setPlaceholderText("Posizione")
-            
-            batch_layout.addRow("Scadenza:", self.expiration_input)
-            batch_layout.addRow("Quantità:", self.amount_input)
-            batch_layout.addRow("Posizione:", self.batch_location_input)
-            
-            self.initial_batch_group.setLayout(batch_layout)
-            self.layout.addWidget(self.initial_batch_group)
+        self.expiration_input.setCalendarPopup(True)
+        self.expiration_input.setDisplayFormat("yyyy-MM-dd")
+        
+        self.amount_input = QLineEdit()
+        self.amount_input.setPlaceholderText("Quantità")
+        
+        self.batch_location_input = QLineEdit()
+        self.batch_location_input.setPlaceholderText("Posizione")
+        
+        batch_layout.addRow("Scadenza:", self.expiration_input)
+        batch_layout.addRow("Quantità:", self.amount_input)
+        batch_layout.addRow("Posizione:", self.batch_location_input)
+        
+        self.initial_batch_group.setLayout(batch_layout)
+        self.layout.addWidget(self.initial_batch_group)
 
         # Buttons
         self.buttons = QDialogButtonBox(
