@@ -11,6 +11,7 @@ import os
 from warehouse.controllers import get_all_withdrawals, return_withdrawal_item
 from warehouse.models import MaterialType, Withdrawal, User, Material
 from warehouse.utils import get_base_path
+from warehouse.ui.colors import AppColors
 
 class WithdrawalItemWidget(QWidget):
     return_requested = pyqtSignal(int)
@@ -80,7 +81,7 @@ class WithdrawalItemWidget(QWidget):
         
         if self.withdrawal.notes:
             notes_lbl = QLabel(f"Note: {self.withdrawal.notes}")
-            notes_lbl.setStyleSheet("color: gray; font-style: italic;")
+            notes_lbl.setStyleSheet(f"color: {AppColors.GREY}; font-style: italic;")
             info_layout.addWidget(notes_lbl, 2, 1)
             
         layout.addLayout(info_layout, stretch=1)
@@ -101,7 +102,7 @@ class WithdrawalItemWidget(QWidget):
                 
                 eff_text = "Efficiente" if self.withdrawal.efficient_at_return else "Inefficiente"
                 lbl_eff = QLabel(eff_text)
-                lbl_eff.setStyleSheet(f"color: {'green' if self.withdrawal.efficient_at_return else 'red'}; font-weight: bold;")
+                lbl_eff.setStyleSheet(f"color: {AppColors.SUCCESS if self.withdrawal.efficient_at_return else AppColors.DANGER}; font-weight: bold;")
                 lbl_eff.setAlignment(Qt.AlignmentFlag.AlignRight)
                 status_layout.addWidget(lbl_eff)
             else:
@@ -119,7 +120,7 @@ class WithdrawalItemWidget(QWidget):
         else:
             # Consumable
             lbl_status = QLabel("Consumabile")
-            lbl_status.setStyleSheet("color: gray;")
+            lbl_status.setStyleSheet(f"color: {AppColors.GREY};")
             status_layout.addWidget(lbl_status)
             
         layout.addLayout(status_layout)

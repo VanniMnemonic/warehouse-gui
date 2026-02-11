@@ -1,8 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QListWidget, QListWidgetItem,
     QLabel, QHBoxLayout, QPushButton, QMessageBox, QDialog, QFormLayout,
-    QDialogButtonBox, QTextEdit, QTabWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QStackedLayout, QComboBox, QGridLayout, QScrollArea, QGroupBox
+    QDialogButtonBox, QTextEdit, QTabWidget, QStackedLayout, QGridLayout, QScrollArea, QGroupBox
 )
 from PyQt6.QtCore import Qt
 from qasync import asyncSlot
@@ -16,12 +15,14 @@ from warehouse.controllers import (
     create_withdrawal,
     get_user_dependencies,
     delete_user,
+    return_withdrawal_item
 )
 from warehouse.controllers_material import get_materials
 from warehouse.models import User, MaterialType
 from warehouse.ui.user_form import UserFormDialog
 from warehouse.ui.components import BarcodeSearchComboBox
 from warehouse.ui.colors import AppColors
+from warehouse.ui.tabs.withdrawals_tab import WithdrawalItemWidget, ReturnDialog
 
 
 class UserDetailDialog(QDialog):
@@ -30,154 +31,204 @@ class UserDetailDialog(QDialog):
         self.user = user
         self.edit_mode = False
         self.materials_for_withdrawal = []
-        self.setWindowTitle("Dettagli Utente")
-        self.resize(700, 800)
+        self.setWindowTitle(f"Dettagli Utente: {user.first_name} {user.last_name}")
+        self.resize(800, 700)
 
         main_layout = QVBoxLayout()
         
-        # Scroll Area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        content = QWidget()
-        self.content_layout = QVBoxLayout(content)
-        self.content_layout.setSpacing(20)
+        # Tabs
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
 
-        # Section 1: Details
-        self.setup_details_section()
+        # Tab 1: Details
+        self.details_tab = QWidget()
+        self.details_layout = QVBoxLayout(self.details_tab)
+        self.setup_details_tab()
+        self.tabs.addTab(self.details_tab, "Dettagli")
 
-        # Section 2: Withdrawals
-        self.setup_withdrawals_section()
+        # Tab 2: Withdrawals List
+        self.withdrawals_list_tab = QWidget()
+        self.withdrawals_list_layout = QVBoxLayout(self.withdrawals_list_tab)
+        self.setup_withdrawals_list_tab()
+        self.tabs.addTab(self.withdrawals_list_tab, "Lista Prelievi")
 
-        self.content_layout.addStretch()
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
+        # Tab 3: New Withdrawal
+        self.new_withdrawal_tab = QWidget()
+        self.new_withdrawal_layout = QVBoxLayout(self.new_withdrawal_tab)
+        self.setup_new_withdrawal_tab()
+        self.tabs.addTab(self.new_withdrawal_tab, "Nuovo Prelievo")
 
-        self.edit_button = QPushButton("Modifica")
-        self.edit_button.clicked.connect(self.enable_edit_mode)
-        main_layout.addWidget(self.edit_button)
+        # Bottom Buttons (Edit, Delete, Save/Cancel)
+        bottom_layout = QHBoxLayout()
+        
+        self.edit_button = QPushButton("Modifica Dati")
+        self.edit_button.clicked.connect(self.toggle_edit_mode)
+        bottom_layout.addWidget(self.edit_button)
 
         self.delete_button = QPushButton("Elimina Utente")
         self.delete_button.setStyleSheet(AppColors.danger_button_style())
         self.delete_button.clicked.connect(self.delete_user_action)
-        main_layout.addWidget(self.delete_button)
+        bottom_layout.addWidget(self.delete_button)
+        
+        bottom_layout.addStretch()
 
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Close
         )
         self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
+        self.save_button.setText("Salva")
         self.save_button.clicked.connect(self.save_changes)
-        self.save_button.setEnabled(False)
+        self.save_button.setVisible(False)
+        
+        self.close_button = self.buttons.button(QDialogButtonBox.StandardButton.Close)
+        self.close_button.setText("Chiudi")
+        
         self.buttons.rejected.connect(self.reject)
-        main_layout.addWidget(self.buttons)
+        bottom_layout.addWidget(self.buttons)
+        
+        main_layout.addLayout(bottom_layout)
 
         self.setLayout(main_layout)
 
         self.load_withdrawals()
         self.load_materials_for_withdrawal()
 
-    def setup_details_section(self):
-        group = QGroupBox("Dettagli")
-        layout = QVBoxLayout()
-        form_layout = QFormLayout()
-        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+    def setup_details_tab(self):
+        # Using a ScrollArea for details in case the screen is small
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        
+        content = QWidget()
+        # Apply compact style to all QLineEdits in this form
+        content.setStyleSheet("QLineEdit { margin: 0px; padding: 2px; }")
+        layout = QVBoxLayout(content)
+        # Use QVBoxLayout with grouped widgets for precise spacing control
+        details_layout = QVBoxLayout()
+        details_layout.setSpacing(15)  # Space between groups (Field + Label)
 
-        self.title_label = QLabel(self.user.title or "")
-        self.title_input = QLineEdit(self.user.title or "")
-        self.title_stack = QStackedLayout()
-        self.title_stack.addWidget(self.title_label)
-        self.title_stack.addWidget(self.title_input)
-        title_widget = QWidget()
-        title_widget.setLayout(self.title_stack)
+        # Helper for stacked fields (consistent with Materials Tab)
+        def create_stacked_field(value, placeholder=""):
+            label = QLabel(str(value) if value else "-")
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            # Match padding/border of QLineEdit to align text baseline
+            label.setStyleSheet("padding: 2px; margin: 0px; border: 1px solid transparent;")
+            
+            edit = QLineEdit(str(value) if value else "")
+            edit.setPlaceholderText(placeholder)
+            # Compact style for input to match label height better
+            edit.setStyleSheet("QLineEdit { margin: 0px; padding: 2px; border: 1px solid #CCCCCC; border-radius: 3px; }")
+            
+            stack = QStackedLayout()
+            stack.setContentsMargins(0, 0, 0, 0)
+            stack.addWidget(label)
+            stack.addWidget(edit)
+            
+            widget = QWidget()
+            widget.setLayout(stack)
+            return label, edit, stack, widget
 
-        self.first_name_label = QLabel(self.user.first_name)
-        self.first_name_input = QLineEdit(self.user.first_name)
-        self.first_name_stack = QStackedLayout()
-        self.first_name_stack.addWidget(self.first_name_label)
-        self.first_name_stack.addWidget(self.first_name_input)
-        first_name_widget = QWidget()
-        first_name_widget.setLayout(self.first_name_stack)
+        def create_field_label(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet(f"color: {AppColors.GREY}; font-size: 11px;")
+            return lbl
+        
+        def add_field_group(label_text, widget):
+            container = QWidget()
+            l = QVBoxLayout(container)
+            l.setContentsMargins(0, 0, 0, 0)
+            l.setSpacing(2) # Very tight spacing between Label and Field
+            
+            l.addWidget(create_field_label(label_text))
+            l.addWidget(widget)
+            details_layout.addWidget(container)
 
-        self.last_name_label = QLabel(self.user.last_name)
-        self.last_name_input = QLineEdit(self.user.last_name)
-        self.last_name_stack = QStackedLayout()
-        self.last_name_stack.addWidget(self.last_name_label)
-        self.last_name_stack.addWidget(self.last_name_input)
-        last_name_widget = QWidget()
-        last_name_widget.setLayout(self.last_name_stack)
-
-        self.custom_id_label = QLabel(self.user.custom_id)
-
-        self.code_label = QLabel(self.user.code or "")
-        self.code_input = QLineEdit(self.user.code or "")
-        self.code_stack = QStackedLayout()
-        self.code_stack.addWidget(self.code_label)
-        self.code_stack.addWidget(self.code_input)
-        code_widget = QWidget()
-        code_widget.setLayout(self.code_stack)
-
-        self.workplace_label = QLabel(self.user.workplace or "")
-        self.workplace_input = QLineEdit(self.user.workplace or "")
-        self.workplace_stack = QStackedLayout()
-        self.workplace_stack.addWidget(self.workplace_label)
-        self.workplace_stack.addWidget(self.workplace_input)
-        workplace_widget = QWidget()
-        workplace_widget.setLayout(self.workplace_stack)
-
-        self.mobile_label = QLabel(self.user.mobile or "")
-        self.mobile_input = QLineEdit(self.user.mobile or "")
-        self.mobile_stack = QStackedLayout()
-        self.mobile_stack.addWidget(self.mobile_label)
-        self.mobile_stack.addWidget(self.mobile_input)
-        mobile_widget = QWidget()
-        mobile_widget.setLayout(self.mobile_stack)
-
-        self.email_label = QLabel(self.user.email or "")
-        self.email_input = QLineEdit(self.user.email or "")
-        self.email_stack = QStackedLayout()
-        self.email_stack.addWidget(self.email_label)
-        self.email_stack.addWidget(self.email_input)
-        email_widget = QWidget()
-        email_widget.setLayout(self.email_stack)
-
+        self.title_lbl, self.title_input, self.title_stack, title_widget = create_stacked_field(self.user.title)
+        self.first_name_lbl, self.first_name_input, self.first_name_stack, first_name_widget = create_stacked_field(self.user.first_name)
+        self.last_name_lbl, self.last_name_input, self.last_name_stack, last_name_widget = create_stacked_field(self.user.last_name)
+        
+        # ID field removed as requested
+        
+        self.code_lbl, self.code_input, self.code_stack, code_widget = create_stacked_field(self.user.code)
+        self.workplace_lbl, self.workplace_input, self.workplace_stack, workplace_widget = create_stacked_field(self.user.workplace)
+        self.mobile_lbl, self.mobile_input, self.mobile_stack, mobile_widget = create_stacked_field(self.user.mobile)
+        self.email_lbl, self.email_input, self.email_stack, email_widget = create_stacked_field(self.user.email)
+        
         self.notes_label = QLabel(self.user.notes or "")
         self.notes_label.setWordWrap(True)
+        self.notes_label.setStyleSheet("padding: 2px; margin: 0px; border: 1px solid transparent;")
+        
         self.notes_input = QTextEdit()
         self.notes_input.setPlainText(self.user.notes or "")
+        self.notes_input.setStyleSheet("margin: 0px; padding: 2px; border: 1px solid #CCCCCC; border-radius: 3px;")
+        
         self.notes_stack = QStackedLayout()
+        self.notes_stack.setContentsMargins(0, 0, 0, 0)
         self.notes_stack.addWidget(self.notes_label)
         self.notes_stack.addWidget(self.notes_input)
         notes_widget = QWidget()
         notes_widget.setLayout(self.notes_stack)
 
-        form_layout.addRow("Titolo:", title_widget)
-        form_layout.addRow("Nome:", first_name_widget)
-        form_layout.addRow("Cognome:", last_name_widget)
-        form_layout.addRow("ID:", self.custom_id_label)
-        form_layout.addRow("Codice (barcode):", code_widget)
-        form_layout.addRow("Luogo di lavoro:", workplace_widget)
-        form_layout.addRow("Cellulare:", mobile_widget)
-        form_layout.addRow("Email:", email_widget)
-        form_layout.addRow("Note:", notes_widget)
+        add_field_group("Titolo", title_widget)
+        add_field_group("Nome", first_name_widget)
+        add_field_group("Cognome", last_name_widget)
+        add_field_group("Codice (barcode)", code_widget)
+        add_field_group("Luogo di lavoro", workplace_widget)
+        add_field_group("Cellulare", mobile_widget)
+        add_field_group("Email", email_widget)
+        add_field_group("Note", notes_widget)
 
-        layout.addLayout(form_layout)
-        group.setLayout(layout)
-        self.content_layout.addWidget(group)
+        layout.addLayout(details_layout)
+        layout.addStretch()
+        scroll.setWidget(content)
+        self.details_layout.addWidget(scroll)
 
-    def enable_edit_mode(self):
+    def toggle_edit_mode(self):
         if self.edit_mode:
-            return
-        self.edit_mode = True
-        self.title_stack.setCurrentIndex(1)
-        self.first_name_stack.setCurrentIndex(1)
-        self.last_name_stack.setCurrentIndex(1)
-        self.code_stack.setCurrentIndex(1)
-        self.workplace_stack.setCurrentIndex(1)
-        self.mobile_stack.setCurrentIndex(1)
-        self.email_stack.setCurrentIndex(1)
-        self.notes_stack.setCurrentIndex(1)
-        self.save_button.setEnabled(True)
-        self.edit_button.setEnabled(False)
-        self.delete_button.setEnabled(False)
+            # Cancel Edit Mode
+            self.edit_mode = False
+            
+            # Reset values
+            self.title_input.setText(self.user.title or "")
+            self.first_name_input.setText(self.user.first_name)
+            self.last_name_input.setText(self.user.last_name)
+            self.code_input.setText(self.user.code or "")
+            self.workplace_input.setText(self.user.workplace or "")
+            self.mobile_input.setText(self.user.mobile or "")
+            self.email_input.setText(self.user.email or "")
+            self.notes_input.setPlainText(self.user.notes or "")
+            
+            # Reset stacks
+            self.title_stack.setCurrentIndex(0)
+            self.first_name_stack.setCurrentIndex(0)
+            self.last_name_stack.setCurrentIndex(0)
+            self.code_stack.setCurrentIndex(0)
+            self.workplace_stack.setCurrentIndex(0)
+            self.mobile_stack.setCurrentIndex(0)
+            self.email_stack.setCurrentIndex(0)
+            self.notes_stack.setCurrentIndex(0)
+            
+            self.save_button.setVisible(False)
+            self.close_button.setVisible(True)
+            self.edit_button.setText("Modifica Dati")
+            self.delete_button.setEnabled(True)
+        else:
+            # Enable Edit Mode
+            self.edit_mode = True
+            self.title_stack.setCurrentIndex(1)
+            self.first_name_stack.setCurrentIndex(1)
+            self.last_name_stack.setCurrentIndex(1)
+            self.code_stack.setCurrentIndex(1)
+            self.workplace_stack.setCurrentIndex(1)
+            self.mobile_stack.setCurrentIndex(1)
+            self.email_stack.setCurrentIndex(1)
+            self.notes_stack.setCurrentIndex(1)
+            
+            self.save_button.setVisible(True)
+            self.save_button.setEnabled(True)
+            self.close_button.setVisible(False)
+            self.edit_button.setText("Annulla")
+            self.delete_button.setEnabled(False)
 
     @asyncSlot()
     async def delete_user_action(self):
@@ -211,23 +262,34 @@ class UserDetailDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile eliminare l'utente: {e}")
 
-    def setup_withdrawals_section(self):
-        group = QGroupBox("Prelievi")
-        layout = QVBoxLayout()
-        self.withdrawals_table = QTableWidget()
-        self.withdrawals_table.setMinimumHeight(150)
-        self.withdrawals_table.setColumnCount(4)
-        self.withdrawals_table.setHorizontalHeaderLabels(
-            ["Data", "Materiale", "Quantità", "Note"]
-        )
-        self.withdrawals_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
-        layout.addWidget(self.withdrawals_table)
+    def setup_withdrawals_list_tab(self):
+        self.withdrawals_list = QListWidget()
+        self.withdrawals_list.setSpacing(2)
+        self.withdrawals_list_layout.addWidget(self.withdrawals_list)
 
+    def setup_new_withdrawal_tab(self):
         form_layout = QFormLayout()
         form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        
         self.new_withdrawal_material_combo = BarcodeSearchComboBox()
+        
+        # Search Input matching MaterialDetailDialog pattern
+        self.material_search_input = QLineEdit()
+        self.material_search_input.setPlaceholderText("Cerca materiale in tutti i campi...")
+        self.material_search_input.textChanged.connect(self.new_withdrawal_material_combo.setEditText)
+        self.material_search_input.textChanged.connect(self.reset_search_check)
+        self.material_search_input.returnPressed.connect(self.on_material_search_return)
+        
+        search_layout = QHBoxLayout()
+        search_layout.addWidget(self.material_search_input)
+        
+        self.search_check_label = QLabel("✅")
+        self.search_check_label.setStyleSheet(f"color: {AppColors.SUCCESS}; font-weight: bold; font-size: 16px;")
+        self.search_check_label.hide()
+        search_layout.addWidget(self.search_check_label)
+        
+        form_layout.addRow("Cerca:", search_layout)
+
         self.new_withdrawal_amount_input = QLineEdit()
         self.new_withdrawal_notes_input = QLineEdit()
 
@@ -235,30 +297,70 @@ class UserDetailDialog(QDialog):
         form_layout.addRow("Quantità:", self.new_withdrawal_amount_input)
         form_layout.addRow("Note:", self.new_withdrawal_notes_input)
 
-        layout.addLayout(form_layout)
+        self.new_withdrawal_layout.addLayout(form_layout)
 
         self.add_withdrawal_button = QPushButton("Aggiungi Prelievo")
         self.add_withdrawal_button.clicked.connect(self.add_user_withdrawal)
-        layout.addWidget(self.add_withdrawal_button)
+        self.new_withdrawal_layout.addWidget(self.add_withdrawal_button)
+        
+        self.new_withdrawal_layout.addStretch()
 
-        group.setLayout(layout)
-        self.content_layout.addWidget(group)
+    def reset_search_check(self):
+        self.search_check_label.hide()
+
+    def on_material_search_return(self):
+        # Access the proxy model from the custom combo box
+        proxy = self.new_withdrawal_material_combo.proxy_model
+        if proxy.rowCount() == 1:
+            # Get the index in the proxy model (row 0, column 0)
+            proxy_index = proxy.index(0, 0)
+            # Map it back to the source model index
+            source_index = proxy.mapToSource(proxy_index)
+            # Set the combo box selection
+            self.new_withdrawal_material_combo.setCurrentIndex(source_index.row())
+            # Show success indicator
+            self.search_check_label.show()
+            # Optional: move focus to next field
+            self.new_withdrawal_amount_input.setFocus()
 
     @asyncSlot()
     async def load_withdrawals(self, *args):
         try:
             # returns list of (Withdrawal, Material)
             withdrawals_data = await get_user_withdrawals(self.user.id)
-            self.withdrawals_table.setRowCount(len(withdrawals_data))
-            for i, (withdrawal, material) in enumerate(withdrawals_data):
-                date_str = withdrawal.withdrawal_date.strftime("%Y-%m-%d %H:%M")
-                material_str = material.denomination
-                self.withdrawals_table.setItem(i, 0, QTableWidgetItem(date_str))
-                self.withdrawals_table.setItem(i, 1, QTableWidgetItem(material_str))
-                self.withdrawals_table.setItem(i, 2, QTableWidgetItem(str(withdrawal.amount)))
-                self.withdrawals_table.setItem(i, 3, QTableWidgetItem(withdrawal.notes or ""))
+            self.withdrawals_list.clear()
+            
+            # Sort by date descending
+            withdrawals_data.sort(key=lambda x: x[0].withdrawal_date, reverse=True)
+            
+            for withdrawal, material in withdrawals_data:
+                item_widget = WithdrawalItemWidget(withdrawal, self.user, material)
+                item_widget.return_requested.connect(self.handle_return_request)
+                
+                item = QListWidgetItem(self.withdrawals_list)
+                item.setSizeHint(item_widget.sizeHint())
+                self.withdrawals_list.addItem(item)
+                self.withdrawals_list.setItemWidget(item, item_widget)
+                
         except Exception as e:
             QMessageBox.warning(self, "Errore Caricamento Dati", f"Impossibile caricare i prelievi: {e}")
+
+    @asyncSlot()
+    async def handle_return_request(self, withdrawal_id: int):
+        dialog = ReturnDialog(self)
+        if dialog.exec():
+            is_efficient = dialog.is_efficient()
+            try:
+                await return_withdrawal_item(withdrawal_id, is_efficient)
+                QMessageBox.information(self, "Successo", "Attrezzatura restituita con successo.")
+                await self.load_withdrawals()
+                
+                # Notify parent to refresh if needed
+                parent = self.parent()
+                if hasattr(parent, "refresh_users"):
+                    await parent.refresh_users()
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", f"Errore durante la restituzione: {e}")
 
     @asyncSlot()
     async def load_materials_for_withdrawal(self, *args):
@@ -300,7 +402,7 @@ class UserDetailDialog(QDialog):
             index = self.new_withdrawal_material_combo.currentIndex()
             if index < 0:
                 QMessageBox.warning(
-                    self, "Validation Error", "Please select a material."
+                    self, "Errore", "Seleziona un materiale."
                 )
                 return
             material_id = self.new_withdrawal_material_combo.currentData()
@@ -308,7 +410,7 @@ class UserDetailDialog(QDialog):
             amount_text = self.new_withdrawal_amount_input.text().strip()
             if not amount_text.isdigit() or int(amount_text) <= 0:
                 QMessageBox.warning(
-                    self, "Validation Error", "Amount must be a positive integer."
+                    self, "Errore", "La quantità deve essere un numero intero positivo."
                 )
                 return
             amount = int(amount_text)
@@ -324,9 +426,13 @@ class UserDetailDialog(QDialog):
             await self.load_withdrawals()
             self.new_withdrawal_amount_input.clear()
             self.new_withdrawal_notes_input.clear()
+            self.new_withdrawal_material_combo.setCurrentIndex(-1)
+            self.material_search_input.clear()
+            
+            QMessageBox.information(self, "Successo", "Prelievo aggiunto con successo.")
         except Exception as e:
             QMessageBox.critical(
-                self, "Error", f"Failed to create withdrawal: {e}"
+                self, "Errore", f"Impossibile creare il prelievo: {e}"
             )
         finally:
             self.add_withdrawal_button.setEnabled(True)
@@ -339,7 +445,7 @@ class UserDetailDialog(QDialog):
         last_name = self.last_name_input.text().strip()
 
         if not first_name or not last_name:
-            QMessageBox.warning(self, "Validation Error", "First Name and Last Name are required.")
+            QMessageBox.warning(self, "Errore", "Nome e Cognome sono obbligatori.")
             self.buttons.setEnabled(True)
             return
 
@@ -366,10 +472,10 @@ class UserDetailDialog(QDialog):
             parent = self.parent()
             if hasattr(parent, "refresh_users"):
                 await parent.refresh_users()
-            QMessageBox.information(self, "Success", "User updated successfully.")
+            QMessageBox.information(self, "Successo", "Utente aggiornato con successo.")
             self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to update user: {str(e)}")
+            QMessageBox.critical(self, "Errore", f"Impossibile aggiornare l'utente: {str(e)}")
             self.buttons.setEnabled(True)
 
 
