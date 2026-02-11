@@ -241,15 +241,18 @@ class UserDetailDialog(QDialog):
             else:
                 msg += "\n\nNessun prelievo associato verrà eliminato."
                 
-            reply = QMessageBox.question(
-                self, 
-                "Conferma Eliminazione", 
-                msg,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
+            box = QMessageBox(self)
+            box.setWindowTitle("Conferma Eliminazione")
+            box.setText(msg)
+            box.setIcon(QMessageBox.Icon.Question)
             
-            if reply == QMessageBox.StandardButton.Yes:
+            btn_yes = box.addButton("Sì, elimina", QMessageBox.ButtonRole.YesRole)
+            btn_no = box.addButton("No, annulla", QMessageBox.ButtonRole.NoRole)
+            box.setDefaultButton(btn_no)
+            
+            box.exec()
+            
+            if box.clickedButton() == btn_yes:
                 await delete_user(self.user.id)
                 QMessageBox.information(self, "Eliminato", "Utente eliminato con successo.")
                 

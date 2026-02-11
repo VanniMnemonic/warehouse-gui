@@ -1,6 +1,7 @@
 from sqlmodel import select, col, func
 from warehouse.database import get_session
-from warehouse.models import User, Withdrawal, Material, Batch, MaterialType
+from warehouse.models import User, Withdrawal, Material, Batch, MaterialType, EventType
+from warehouse.controllers_log import create_log_entry
 from rapidfuzz import process, fuzz, utils
 
 async def get_all_users():
@@ -53,6 +54,13 @@ async def create_user(first_name: str, last_name: str, **kwargs):
         session.add(user)
         await session.commit()
         await session.refresh(user)
+        
+        # Log event
+        await create_log_entry(
+            event_type=EventType.USER_CREATED,
+            description=f"Creato nuovo utente: {user.first_name} {user.last_name} ({user.custom_id})"
+        )
+        
         return user
 
 
@@ -174,6 +182,15 @@ async def create_withdrawal(
         session.add(withdrawal)
         await session.commit()
         await session.refresh(withdrawal)
+        
+        # Log event
+        user = await session.get(User, user_id)
+        material_name = material.denomination
+        await create_log_entry(
+            event_type=EventType.WITHDRAWAL_CREATED,
+            description=f"Prelievo: {amount}x {material_name} da {user.first_name} {user.last_name}"
+        )
+        
         return withdrawal
 
 
@@ -204,6 +221,18 @@ async def return_withdrawal_item(withdrawal_id: int, efficient: bool) -> Withdra
             
         await session.commit()
         await session.refresh(withdrawal)
+        
+        # Log event
+        status_str = "Efficiente" if efficient else "Inefficiente/Danneggiato"
+        user = await session.get(User, withdrawal.user_id)
+        mat_name = material.denomination if material else "???"
+        user_name = f"{user.first_name} {user.last_name}" if user else "???"
+        
+        await create_log_entry(
+            event_type=EventType.WITHDRAWAL_RETURNED,
+            description=f"Restituzione: {mat_name} da {user_name}. Stato: {status_str}"
+        )
+        
         return withdrawal
 
 async def get_active_item_withdrawals() -> dict[int, list[tuple[Withdrawal, User]]]:

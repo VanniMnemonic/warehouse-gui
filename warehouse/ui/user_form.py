@@ -38,12 +38,13 @@ class UserFormDialog(QDialog):
         self.layout.addLayout(self.form_layout)
         
         # Buttons
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
+        self.buttons = QDialogButtonBox()
+        self.btn_save = self.buttons.addButton("Salva", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.btn_cancel = self.buttons.addButton("Annulla", QDialogButtonBox.ButtonRole.RejectRole)
+        
         # Disconnect default signal to prevent auto-close on Enter for Save
         # We manually handle accepted via our async slot
-        self.buttons.button(QDialogButtonBox.StandardButton.Save).clicked.connect(self.accept_data)
+        self.btn_save.clicked.connect(self.accept_data)
         self.buttons.rejected.connect(self.reject)
         
         self.layout.addWidget(self.buttons)
@@ -58,7 +59,7 @@ class UserFormDialog(QDialog):
         last_name = self.last_name_input.text().strip()
         
         if not first_name or not last_name:
-            QMessageBox.warning(self, "Validation Error", "First Name and Last Name are required.")
+            QMessageBox.warning(self, "Errore Validazione", "Nome e Cognome sono obbligatori.")
             self.buttons.setEnabled(True)
             return
 

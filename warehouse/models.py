@@ -60,3 +60,20 @@ class Withdrawal(SQLModel, table=True):
     
     user: User = Relationship(back_populates="withdrawals")
     material: Material = Relationship(back_populates="withdrawals")
+
+class EventType(str, Enum):
+    USER_CREATED = "user_created"
+    MATERIAL_CREATED = "material_created"
+    MATERIAL_UPDATED = "material_updated"
+    MATERIAL_DELETED = "material_deleted"
+    BATCH_CREATED = "batch_created"
+    WITHDRAWAL_CREATED = "withdrawal_created"
+    WITHDRAWAL_RETURNED = "withdrawal_returned"
+
+class EventLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    timestamp: datetime = Field(default_factory=datetime.now)
+    event_type: EventType
+    description: str
+    details: Optional[str] = None # Can store JSON string if needed for extra details
+

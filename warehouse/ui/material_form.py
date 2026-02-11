@@ -149,11 +149,12 @@ class MaterialFormDialog(QDialog):
         self.layout.addWidget(self.initial_batch_group)
 
         # Buttons
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
+        self.buttons = QDialogButtonBox()
+        self.btn_save = self.buttons.addButton("Salva", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.btn_cancel = self.buttons.addButton("Annulla", QDialogButtonBox.ButtonRole.RejectRole)
+        
         # Manual connection for async handling
-        self.buttons.button(QDialogButtonBox.StandardButton.Save).clicked.connect(self.accept_data)
+        self.btn_save.clicked.connect(self.accept_data)
         self.buttons.rejected.connect(self.reject)
         
         self.layout.addWidget(self.buttons)

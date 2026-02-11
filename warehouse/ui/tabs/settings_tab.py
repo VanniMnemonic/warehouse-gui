@@ -135,14 +135,18 @@ class SettingsTab(QWidget):
 
     @asyncSlot()
     async def import_db(self):
-        confirm = QMessageBox.warning(
-            self,
-            "Conferma Importazione",
-            "L'importazione sovrascriverà i dati attuali (Database e Immagini).\nTutto il contenuto corrente andrà perso.\nContinuare?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Conferma Importazione")
+        box.setText("L'importazione sovrascriverà i dati attuali (Database e Immagini).\nTutto il contenuto corrente andrà perso.\nContinuare?")
+        box.setIcon(QMessageBox.Icon.Warning)
         
-        if confirm != QMessageBox.StandardButton.Yes:
+        btn_yes = box.addButton("Sì, importa", QMessageBox.ButtonRole.YesRole)
+        btn_no = box.addButton("No, annulla", QMessageBox.ButtonRole.NoRole)
+        box.setDefaultButton(btn_no)
+        
+        box.exec()
+        
+        if box.clickedButton() != btn_yes:
             return
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -201,14 +205,18 @@ class SettingsTab(QWidget):
 
     @asyncSlot()
     async def reset_db(self):
-        confirm = QMessageBox.question(
-            self,
-            "Conferma Reset",
-            "Sei sicuro di voler resettare il database? Tutti i dati andranno persi irreversibilmente.\nUna copia di backup verrà creata automaticamente.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Conferma Reset")
+        box.setText("Sei sicuro di voler resettare il database? Tutti i dati andranno persi irreversibilmente.\nUna copia di backup verrà creata automaticamente.")
+        box.setIcon(QMessageBox.Icon.Question)
         
-        if confirm != QMessageBox.StandardButton.Yes:
+        btn_yes = box.addButton("Sì, resetta tutto", QMessageBox.ButtonRole.YesRole)
+        btn_no = box.addButton("No, annulla", QMessageBox.ButtonRole.NoRole)
+        box.setDefaultButton(btn_no)
+        
+        box.exec()
+        
+        if box.clickedButton() != btn_yes:
             return
         
         try:

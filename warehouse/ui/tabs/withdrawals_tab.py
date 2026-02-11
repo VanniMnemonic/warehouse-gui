@@ -153,7 +153,10 @@ class ReturnDialog(QDialog):
         layout.addWidget(self.yes_radio)
         layout.addWidget(self.no_radio)
         
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox()
+        self.btn_ok = buttons.addButton("Conferma", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.btn_cancel = buttons.addButton("Annulla", QDialogButtonBox.ButtonRole.RejectRole)
+        
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

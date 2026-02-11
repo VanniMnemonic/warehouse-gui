@@ -13,6 +13,7 @@ from warehouse.ui.tabs.materials_tab import MaterialsTab
 from warehouse.ui.tabs.withdrawals_tab import WithdrawalsTab
 from warehouse.ui.tabs.dashboard_tab import DashboardTab
 from warehouse.ui.tabs.settings_tab import SettingsTab
+from warehouse.ui.tabs.logs_tab import LogsTab
 from warehouse.ui.theme import apply_theme
 
 class MainWindow(QMainWindow):
@@ -67,7 +68,11 @@ class MainWindow(QMainWindow):
         self.withdrawals_tab = WithdrawalsTab()
         self.tabs.addTab(self.withdrawals_tab, "Prelievi")
         
-        # 5. Settings Tab
+        # 5. Logs Tab
+        self.logs_tab = LogsTab()
+        self.tabs.addTab(self.logs_tab, "Log Eventi")
+
+        # 6. Settings Tab
         self.settings_tab = SettingsTab()
         self.settings_tab.db_changed.connect(self.on_db_changed)
         self.tabs.addTab(self.settings_tab, "Impostazioni")
@@ -88,6 +93,7 @@ class MainWindow(QMainWindow):
         await self.items_tab.refresh_materials()
         await self.consumables_tab.refresh_materials()
         await self.withdrawals_tab.refresh_withdrawals()
+        await self.logs_tab.refresh_logs()
         self.statusBar().showMessage("Dati aggiornati dopo operazione su DB", 5000)
 
     @asyncSlot()
@@ -98,6 +104,8 @@ class MainWindow(QMainWindow):
         widget = self.tabs.widget(index)
         if isinstance(widget, DashboardTab):
             await widget.refresh_data()
+        elif isinstance(widget, LogsTab):
+            await widget.refresh_logs()
         elif isinstance(widget, UsersTab):
             # Assuming UsersTab has a refresh method, check previous code if needed.
             # Usually it loads on init. Let's check if it has a public refresh method.

@@ -511,15 +511,18 @@ class MaterialDetailDialog(QDialog):
             else:
                 msg += "\n\nNessun dato associato verrà eliminato."
                 
-            reply = QMessageBox.question(
-                self, 
-                "Conferma Eliminazione", 
-                msg,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
+            box = QMessageBox(self)
+            box.setWindowTitle("Conferma Eliminazione")
+            box.setText(msg)
+            box.setIcon(QMessageBox.Icon.Question)
             
-            if reply == QMessageBox.StandardButton.Yes:
+            btn_yes = box.addButton("Sì, elimina", QMessageBox.ButtonRole.YesRole)
+            btn_no = box.addButton("No, annulla", QMessageBox.ButtonRole.NoRole)
+            box.setDefaultButton(btn_no)
+            
+            box.exec()
+            
+            if box.clickedButton() == btn_yes:
                 await delete_material(self.material.id)
                 QMessageBox.information(self, "Eliminato", "Elemento eliminato con successo.")
                 
@@ -798,7 +801,7 @@ class MaterialDetailDialog(QDialog):
     async def save_changes(self, *args):
         denomination = self.denomination_input.text().strip()
         if not denomination:
-            QMessageBox.warning(self, "Validation Error", "Denomination is required.")
+            QMessageBox.warning(self, "Errore di Validazione", "La denominazione è obbligatoria.")
             return
 
         try:

@@ -1,7 +1,8 @@
 from sqlmodel import select, col, func
 from datetime import date, timedelta
 from warehouse.database import get_session
-from warehouse.models import Material, MaterialType, Batch, Withdrawal, User
+from warehouse.models import Material, MaterialType, Batch, Withdrawal, User, EventType
+from warehouse.controllers_log import create_log_entry
 
 async def get_materials(material_type: MaterialType):
     async with get_session() as session:
@@ -64,6 +65,13 @@ async def create_material(
         session.add(material)
         await session.commit()
         await session.refresh(material)
+        
+        # Log event
+        type_str = "Attrezzatura" if material_type == MaterialType.ITEM else "Consumabile"
+        await create_log_entry(
+            event_type=EventType.MATERIAL_CREATED,
+            description=f"Creato {type_str}: {denomination}"
+        )
         
         # If ITEM, create initial batch with location ONLY IF batch data not provided manually in form
         # (The form now exposes batch fields for ITEM too, so if the user filled them, `create_batch` logic in form handler is used)
@@ -169,6 +177,15 @@ async def create_batch(
         session.add(batch)
         await session.commit()
         await session.refresh(batch)
+        
+        # Log event
+        material = await session.get(Material, material_id)
+        mat_name = material.denomination if material else "???"
+        await create_log_entry(
+            event_type=EventType.BATCH_CREATED,
+            description=f"Nuovo lotto per {mat_name}: Qtà {amount}, Scad {expiration}"
+        )
+        
         return batch
 
 
@@ -199,6 +216,13 @@ async def update_material(material_id: int, **kwargs) -> Material:
         
         await session.commit()
         await session.refresh(material)
+        
+        # Log event
+        await create_log_entry(
+            event_type=EventType.MATERIAL_UPDATED,
+            description=f"Aggiornato materiale: {material.denomination}"
+        )
+        
         return material
 
 
@@ -237,6 +261,14 @@ async def delete_material(material_id: int):
         for b in b_res.scalars().all():
             await session.delete(b)
             
+        # Log event (must be done before delete or capture name before)
+        mat_name = material.denomination
+        
         await session.delete(material)
         await session.commit()
+        
+        await create_log_entry(
+            event_type=EventType.MATERIAL_DELETED,
+            description=f"Eliminato materiale: {mat_name}"
+        )
 
